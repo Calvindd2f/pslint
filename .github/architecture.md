@@ -1,0 +1,14 @@
+- /
+  - PSLint is the root folder for the module.
+  - [ ] `PSLint.psd1`: is the module manifest file, which contains metadata about the module.
+  - [ ] `PSLint.psm1`: is the main module file, which contains the implementation of the linter.
+  - [ ] `Internal` `/`: is a folder for internal helper scripts.
+    - [ ] `ASTParser.ps1` : is a script that parses the Abstract Syntax Tree (AST) of a PowerShell script.
+    - [ ] `PSLint.ps1`
+  - [ ] `Rules` `/` : is a folder for individual rule scripts.
+    - [ ] `PerformanceRules.ps1`: : examples of rule scripts that check for performance issues and errors, respectively.
+    - [ ] `ErrorRules.ps1` : examples of rule scripts that check for performance issues and errors, respectively.
+    - [ ] `RuleSet.ps1` : is a script that defines the rule set for the linter.
+  - [ ] `Tests` `/` : is a folder for test scripts.
+    - [ ] `PSLint.Tests.ps1` : is a test script for the linter.
+- /
