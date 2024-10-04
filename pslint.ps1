@@ -1,5 +1,4 @@
-function pslint
-{
+function pslint {
     <#
         .SYNOPSIS
         Performance focused powershell linteer.
@@ -17,28 +16,16 @@ function pslint
         .PARAMETER ScriptBlock
         The script block to analyze.
 
-        .PARAMETER Debug
-        Enables debug output.
-
-        .PARAMETER Output
-        The path to the output file.
-
         .EXAMPLE
-        pslint -Path C:\path\to\script.ps1
+        # Analyze a file
+        pslint -Path ".\your-script.ps1"
+
+        # Or analyze a scriptblock
+        $sb = { Write-Host "test" }
+        pslint -ScriptBlock $sb
 
         .NOTES
         General notes
-        #read_only
-        ####################################################
-        ##########  INPUT
-        #####################################################
-        ####################################################
-        ##########  OUTPUT
-        #####################################################
-        $variableProps = @{}
-        $outputProps = @{ out = [psobject]($variableProps); success = $false; }
-        $pslintOutput = [psobject]($outputProps);
-        #/read_only
     #>
     [Alias('Scan-PowerShellScriptAdvanced')]
     [CmdletBinding()]
@@ -49,29 +36,29 @@ function pslint
 
         [Parameter(ParameterSetName = 'ScriptBlock')]
         [scriptblock]
-        $ScriptBlock,
-
-        [Parameter(DontShow = $true)]
-        [switch]
-        $Debug,
-
-        [Parameter]
-        [string]
-        $Output = [datetime]::Now.ToString('o') + 'pslint_output.log'
+        $ScriptBlock
     )
-    BEGIN
-    {
-        if ($PSCmdlet.ParameterSetName -eq 'Path')
-        {
-            $ast = [System.Management.Automation.Language.Parser]::ParseFile($Path, [ref]$null, [ref]$null)
-        }
-        else
-        {
+    BEGIN {
+        if ($PSCmdlet.ParameterSetName -eq 'Path') {
+            if (-not (Test-Path $Path)) {
+                throw "File not found: $Path"
+            }
+            $parseErrors = $null
+            $tokens = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($Path, [ref]$tokens, [ref]$parseErrors)
+
+            if ($parseErrors) {
+                throw "Parse errors encountered: $($parseErrors -join "`n")"
+            }
+        } else {
+            if ($null -eq $ScriptBlock) {
+                throw 'ScriptBlock cannot be null'
+            }
             $ast = $ScriptBlock.Ast
         }
 
-        class CodeAnalysisResults
-        {
+        # result class
+        class CodeAnalysisResults {
             [System.Collections.Generic.List[object]]$OutputSuppression
             [System.Collections.Generic.List[object]]$ArrayAddition
             [System.Collections.Generic.List[object]]$LargeFileProcessing
@@ -82,8 +69,7 @@ function pslint
             [System.Collections.Generic.List[object]]$CmdletPipelineWrapping
             [System.Collections.Generic.List[object]]$DynamicObjectCreation
 
-            CodeAnalysisResults()
-            {
+            CodeAnalysisResults() {
                 $this.OutputSuppression = [System.Collections.Generic.List[object]]::new()
                 $this.ArrayAddition = [System.Collections.Generic.List[object]]::new()
                 $this.LargeFileProcessing = [System.Collections.Generic.List[object]]::new()
@@ -95,122 +81,162 @@ function pslint
                 $this.DynamicObjectCreation = [System.Collections.Generic.List[object]]::new()
             }
         }
-        $variableProps = @{ result = $null; }
-        $outputProps = @{ out = [psobject]($variableProps); success = $false; error = $null; }
-        $pslintOutput = [psobject]($outputProps);
     }
-    PROCESS
-    {
-        $results = [CodeAnalysisResults]::new();
+    PROCESS {
+        $results = [CodeAnalysisResults]::new()
+
+        function Test-NodeSafely {
+            param(
+                [Parameter(Mandatory)]
+                [System.Management.Automation.Language.Ast]$Node,
+                [Parameter(Mandatory)]
+                [scriptblock]$Condition
+            )
+
+            try {
+                return (& $Condition $Node)
+            } catch {
+                Write-Verbose "Error checking node: $_"
+                return $false
+            }
+        }
 
         # Output Suppression
         $ast.FindAll({
                 param($node)
-        ($node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
-                $node.Right -is [System.Management.Automation.Language.VariableExpressionAst] -and
-                $node.Right.VariablePath.UserPath -eq 'null') -or
-        ($node -is [System.Management.Automation.Language.CommandAst] -and
-                $node.Redirections.Count -gt 0 -and
-                $node.Redirections[0].ToString() -eq ">$null") -or
-        ($node -is [System.Management.Automation.Language.CommandExpressionAst] -and
-                $node.Expression -is [System.Management.Automation.Language.TypeExpressionAst] -and
-                $node.Expression.TypeName.Name -eq 'void') -or
-        ($node -is [System.Management.Automation.Language.PipelineAst] -and
-                $node.PipelineElements[-1].CommandElements[-1].Value -eq 'Out-Null')
-            }, $true) | ForEach-Object { $results.OutputSuppression.Add($_) }
+                Test-NodeSafely -Node $node -Condition {
+                    param($n)
+                ($n -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+                    $null -ne $n.Right -and
+                    $n.Right -is [System.Management.Automation.Language.VariableExpressionAst] -and
+                    $n.Right.VariablePath.UserPath -eq 'null') -or
+                ($n -is [System.Management.Automation.Language.CommandAst] -and
+                    $n.Redirections.Count -gt 0 -and
+                    $null -ne $n.Redirections[0] -and
+                    $n.Redirections[0].ToString() -eq ">$null") -or
+                ($n -is [System.Management.Automation.Language.CommandExpressionAst] -and
+                    $null -ne $n.Expression -and
+                    $n.Expression -is [System.Management.Automation.Language.TypeExpressionAst] -and
+                    $n.Expression.TypeName.Name -eq 'void') -or
+                ($n -is [System.Management.Automation.Language.PipelineAst] -and
+                    $n.PipelineElements.Count -gt 0 -and
+                    $null -ne $n.PipelineElements[-1].CommandElements -and
+                    $n.PipelineElements[-1].CommandElements.Count -gt 0 -and
+                    $n.PipelineElements[-1].CommandElements[-1].Value -eq 'Out-Null')
+                }
+            }, $true) | Where-Object { $null -ne $_ } | ForEach-Object { $results.OutputSuppression.Add($_) }
 
-        # ArrayAddition
+        # Array Addition
         $ast.FindAll({
                 param($node)
-        ($node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
-                $node.Operator -eq 'Equals' -and
-                $node.Right -is [System.Management.Automation.Language.ArrayExpressionAst]) -or
-        ($node -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and
-                $node.Member.Value -eq 'Add') -or
-        ($node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
-                $node.Operator -eq 'PlusEquals')
-            }, $true) | ForEach-Object { $results.ArrayAddition.Add($_) }
-
-        # String Addition
+                Test-NodeSafely -Node $node -Condition {
+                    param($n)
+                ($n -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+                    $n.Operator -eq 'Equals' -and
+                    $null -ne $n.Right -and
+                    $n.Right -is [System.Management.Automation.Language.ArrayExpressionAst]) -or
+                ($n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and
+                    $null -ne $n.Member -and
+                    $n.Member.Value -eq 'Add') -or
+                ($n -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+                    $n.Operator -eq 'PlusEquals')
+                }
+            }, $true) | Where-Object { $null -ne $_ } | ForEach-Object { $results.ArrayAddition.Add($_) }
 
         # Large File Processing
         $ast.FindAll({
                 param($node)
-        ($node -is [System.Management.Automation.Language.CommandAst] -and
-                $node.CommandElements[0].Value -eq 'Get-Content') -or
-        ($node -is [System.Management.Automation.Language.TypeExpressionAst] -and
-                $node.TypeName.Name -eq 'StreamReader') -or
-        ($node -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and
-                $node.Expression.TypeName.Name -eq 'File' -and
-                $node.Member.Value -eq 'ReadLines')
+                Test-NodeSafely -Node $node -Condition {
+                    param($n)
+                ($n -is [System.Management.Automation.Language.CommandAst] -and
+                    $n.CommandElements[0].Value -eq 'Get-Content') -or
+                ($n -is [System.Management.Automation.Language.TypeExpressionAst] -and
+                    $n.TypeName.Name -eq 'StreamReader') -or
+                ($n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and
+                    $n.Expression.TypeName.Name -eq 'File' -and
+                    $n.Member.Value -eq 'ReadLines')
+                }
             }, $true) | ForEach-Object { $results.LargeFileProcessing.Add($_) }
 
         # Large Collection Lookup
         $ast.FindAll({
                 param($node)
-                $node -is [System.Management.Automation.Language.HashtableAst]
+                Test-NodeSafely -Node $node -Condition {
+                    param($n)
+                    $n -is [System.Management.Automation.Language.HashtableAst]
+                }
             }, $true) | ForEach-Object { $results.LargeCollectionLookup.Add($_) }
+
 
         # Write-Host Usage
         $ast.FindAll({
                 param($node)
-                $node -is [System.Management.Automation.Language.CommandAst] -and
-                $node.CommandElements[0].Value -eq 'Write-Host'
+                Test-NodeSafely -Node $node -Condition {
+                    param($n)
+                    $n -is [System.Management.Automation.Language.CommandAst] -and
+                    $n.CommandElements[0].Value -eq 'Write-Host'
+                }
             }, $true) | ForEach-Object { $results.WriteHostUsage.Add($_) }
+
 
         # Large Loops (potential JIT candidates)
         $ast.FindAll({
                 param($node)
-        ($node -is [System.Management.Automation.Language.ForStatementAst] -or
-                $node -is [System.Management.Automation.Language.WhileStatementAst] -or
-                $node -is [System.Management.Automation.Language.DoWhileStatementAst] -or
-                $node -is [System.Management.Automation.Language.ForEachStatementAst]) -and
-                $node.Body.Extent.EndLineNumber - $node.Body.Extent.StartLineNumber > 15
+                Test-NodeSafely -Node $node -Condition {
+                    param($n)
+                ($n -is [System.Management.Automation.Language.ForStatementAst] -or
+                    $n -is [System.Management.Automation.Language.WhileStatementAst] -or
+                    $n -is [System.Management.Automation.Language.DoWhileStatementAst] -or
+                    $n -is [System.Management.Automation.Language.ForEachStatementAst]) -and
+                    $node.Body.Extent.EndLineNumber - $node.Body.Extent.StartLineNumber > 15
+                }
             }, $true) | ForEach-Object { $results.LargeLoops.Add($_) }
+
 
         # Repeated Function Calls
         $ast.FindAll({
                 param($node)
-                $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
-                $node.Body.Extent.Text -match 'for\s*\('
+                Test-NodeSafely -Node $node -Condition {
+                    param($n)
+                    $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                    $n.Body.Extent.Text -match 'for\s*\('
+                }
             }, $true) | ForEach-Object { $results.OutputSuppression.Add($_) }
+
 
         # Cmdlet Pipeline Wrapping
         $ast.FindAll({
                 param($node)
-                $node -is [System.Management.Automation.Language.PipelineAst] -and
-                $node.PipelineElements.Count -gt 2
+                Test-NodeSafely -Node $node -Condition {
+                    param($n)
+                    $n -is [System.Management.Automation.Language.PipelineAst] -and
+                    $n.PipelineElements.Count -gt 2
+                }
             }, $true) | ForEach-Object { $results.OutputSuppression.Add($_) }
+
 
         # Dynamic Object Creation
         $ast.FindAll({
                 param($node)
-        ($node -is [System.Management.Automation.Language.ConvertExpressionAst] -and
-                $node.Type.TypeName.Name -eq 'pscustomobject') -or
-        ($node -is [System.Management.Automation.Language.CommandAst] -and
-                $node.CommandElements[0].Value -eq 'Add-Member') -or
-        ($node -is [System.Management.Automation.Language.MemberExpressionAst] -and
-                $node.Member.Value -eq 'Properties' -and
-                $node.Expression.TypeName.Name -eq 'PSObject')
+                Test-NodeSafely -Node $node -Condition {
+                    param($n)
+                ($n -is [System.Management.Automation.Language.ConvertExpressionAst] -and
+                    $n.Type.TypeName.Name -eq 'pscustomobject') -or
+                ($n -is [System.Management.Automation.Language.CommandAst] -and
+                    $n.CommandElements[0].Value -eq 'Add-Member') -or
+                ($n -is [System.Management.Automation.Language.MemberExpressionAst] -and
+                    $n.Member.Value -eq 'Properties' -and
+                    $n.Expression.TypeName.Name -eq 'PSObject')
+                }
             }, $true) | ForEach-Object { $results.OutputSuppression.Add($_) }
 
-        $pslintOutput.out.result += $result;
-        $pslintOutput.success = $true;
     }
 
-    END
-    {
-        if (!$pslintOutput.success)
-        {
-            $pslintOutput.success = $false;
-            $errorMessages = @($_.ErrorDetails.Message)
-            $pslintOutput.error += $errorMessages
-        }
 
-        # Garbage collection
-        [GC]::WaitForPendingFinalizers()
-        [GC]::Collect()
+    END {
+        $results
 
-        return $pslintOutput
+        [System.GC]::Collect()
+        [System.GC]::WaitForPendingFinalizers()
     }
 }
