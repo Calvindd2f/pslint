@@ -1,4 +1,5 @@
-function pslint {
+function pslint
+{
     <#
         .SYNOPSIS
         Performance focused powershell linteer.
@@ -29,7 +30,7 @@ function pslint {
     #>
     [Alias('Scan-PowerShellScriptAdvanced')]
     [CmdletBinding()]
-    param (
+    PARAM (
         [Parameter(ParameterSetName = 'Path')]
         [string]
         $Path,
@@ -38,27 +39,36 @@ function pslint {
         [scriptblock]
         $ScriptBlock
     )
-    BEGIN {
-        if ($PSCmdlet.ParameterSetName -eq 'Path') {
-            if (-not (Test-Path $Path)) {
+
+    BEGIN
+    {
+        if ($PSCmdlet.ParameterSetName -eq 'Path')
+        {
+            if (-not (Test-Path $Path))
+            {
                 throw "File not found: $Path"
             }
             $parseErrors = $null
             $tokens = $null
             $ast = [System.Management.Automation.Language.Parser]::ParseFile($Path, [ref]$tokens, [ref]$parseErrors)
 
-            if ($parseErrors) {
+            if ($parseErrors)
+            {
                 throw "Parse errors encountered: $($parseErrors -join "`n")"
             }
-        } else {
-            if ($null -eq $ScriptBlock) {
+        }
+        else
+        {
+            if ($null -eq $ScriptBlock)
+            {
                 throw 'ScriptBlock cannot be null'
             }
             $ast = $ScriptBlock.Ast
         }
 
         # result class
-        class CodeAnalysisResults {
+        class CodeAnalysisResults
+        {
             [System.Collections.Generic.List[object]]$OutputSuppression
             [System.Collections.Generic.List[object]]$ArrayAddition
             [System.Collections.Generic.List[object]]$LargeFileProcessing
@@ -69,7 +79,8 @@ function pslint {
             [System.Collections.Generic.List[object]]$CmdletPipelineWrapping
             [System.Collections.Generic.List[object]]$DynamicObjectCreation
 
-            CodeAnalysisResults() {
+            CodeAnalysisResults()
+            {
                 $this.OutputSuppression = [System.Collections.Generic.List[object]]::new()
                 $this.ArrayAddition = [System.Collections.Generic.List[object]]::new()
                 $this.LargeFileProcessing = [System.Collections.Generic.List[object]]::new()
@@ -82,10 +93,13 @@ function pslint {
             }
         }
     }
-    PROCESS {
+
+    PROCESS
+    {
         $results = [CodeAnalysisResults]::new()
 
-        function Test-NodeSafely {
+        function Test-NodeSafely
+        {
             param(
                 [Parameter(Mandatory)]
                 [System.Management.Automation.Language.Ast]$Node,
@@ -93,9 +107,12 @@ function pslint {
                 [scriptblock]$Condition
             )
 
-            try {
+            try
+            {
                 return (& $Condition $Node)
-            } catch {
+            }
+            catch
+            {
                 Write-Verbose "Error checking node: $_"
                 return $false
             }
@@ -232,11 +249,20 @@ function pslint {
 
     }
 
-
-    END {
+    END
+    {
         $results
 
         [System.GC]::Collect()
         [System.GC]::WaitForPendingFinalizers()
     }
+}
+
+function pslint.tests([string]$directory)
+{
+    #$results = [System.Collections.Generic.List[PSObject]]::new()
+    #$results.OutputSuppression = [System.Collections.Generic.List[PSObject]]::new()
+    $files = Get-ChildItem -File -Path $directory
+    $results = $files | ForEach-Object { pslint -Path $_.FullName }
+    $results
 }
