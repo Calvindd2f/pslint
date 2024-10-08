@@ -251,18 +251,95 @@ function pslint
 
     END
     {
-        $results
+        # Create a structured report
+        $report = [ordered]@{
+            Summary    = @{
+                TotalIssues = 0
+                Categories  = @{}
+            }
+            Details    = [ordered]@{}
+            Timestamp  = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+            ScriptPath = if ($Path) { $Path } else { "ScriptBlock Analysis" }
+        }
 
+        # Process each category in the results
+        $results | Get-Member -MemberType Property | ForEach-Object {
+            $categoryName = $_.Name
+            $issues = $results.$categoryName
+
+            # Skip empty categories
+            if ($issues.Count -eq 0) { return }
+
+            $report.Summary.Categories[$categoryName] = $issues.Count
+            $report.Summary.TotalIssues += $issues.Count
+
+            $report.Details[$categoryName] = @(
+                foreach ($issue in $issues)
+                {
+                    @{
+                        Line       = $issue.Extent.StartLineNumber
+                        Text       = $issue.Extent.Text.Trim()
+                        Suggestion = switch ($categoryName)
+                        {
+                            'OutputSuppression' { 'Consider using [void] for better performance' }
+                            'ArrayAddition' { 'Consider using ArrayList or Generic List for better performance' }
+                            'LargeFileProcessing' { 'Consider using System.IO.StreamReader for large files' }
+                            'LargeCollectionLookup' { 'Consider using Dictionary<TKey,TValue> for large collections' }
+                            'WriteHostUsage' { 'Consider using Write-Information or Write-Output' }
+                            'LargeLoops' { 'Consider breaking down large loops or using .NET methods' }
+                            'RepeatedFunctionCalls' { 'Consider caching function results' }
+                            'CmdletPipelineWrapping' { 'Consider reducing pipeline complexity' }
+                            'DynamicObjectCreation' { 'Consider using classes or structured objects' }
+                            default { 'Review for potential optimization' }
+                        }
+                    }
+                }
+            )
+        }
+
+        # Determine output format based on environment
+        $isCI = [bool]$env:CI
+        if ($isCI)
+        {
+            # Output in CI-friendly format (e.g., GitHub Actions annotations)
+            foreach ($category in $report.Details.Keys)
+            {
+                foreach ($issue in $report.Details[$category])
+                {
+                    Write-Output "::warning file=$($report.ScriptPath),line=$($issue.Line)::[$category] $($issue.Suggestion)"
+                }
+            }
+
+            # Output summary as JSON for easy parsing
+            $report.Summary | ConvertTo-Json -Depth 10
+        }
+        else
+        {
+            # Interactive console output
+            Write-Output "`n=== PowerShell Performance Analysis Report ==="
+            Write-Output "Script: $($report.ScriptPath)"
+            Write-Output "Time: $($report.Timestamp)"
+            Write-Output "`nSummary:"
+            Write-Output "Total Issues Found: $($report.Summary.TotalIssues)"
+
+            foreach ($category in $report.Details.Keys)
+            {
+                $issueCount = $report.Summary.Categories[$category]
+                if ($issueCount -gt 0)
+                {
+                    Write-Output "`n== $category ($issueCount issues) =="
+                    foreach ($issue in $report.Details[$category])
+                    {
+                        Write-Output "  Line $($issue.Line):"
+                        Write-Output "    Code: $($issue.Text)"
+                        Write-Output "    Suggestion: $($issue.Suggestion)"
+                    }
+                }
+            }
+        }
+
+        # Cleanup
         [System.GC]::Collect()
         [System.GC]::WaitForPendingFinalizers()
     }
-}
-
-function pslint.tests([string]$directory)
-{
-    #$results = [System.Collections.Generic.List[PSObject]]::new()
-    #$results.OutputSuppression = [System.Collections.Generic.List[PSObject]]::new()
-    $files = Get-ChildItem -File -Path $directory
-    $results = $files | ForEach-Object { pslint -Path $_.FullName }
-    $results
 }
