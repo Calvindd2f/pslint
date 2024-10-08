@@ -30,7 +30,7 @@
 <br />
 <div align="center">
   <a href="https://github.com/calvindd2f/pslint">
-    <img src="images/logo.png" alt="Logo" width="80" height="80">
+    <img src="https://app-support.com/public/img/plint.webp" alt="Logo" width="80" height="80">
   </a>
 
 <h3 align="center">PSlint</h3>
@@ -79,22 +79,9 @@
 
 ## About The Project
 
-[![Product Name Screen Shot][product-screenshot]](https://example.com)
+![Product Name Screen Shot](https://app-support.com/public/img/plint.webp)
 
-Here's a blank template to get started: To avoid retyping too much info. Do a search and replace with your text editor for the following: `calvindd2f`, `pslint`, `twitter_handle`, `linkedin_username`, `email_client`, `email`, `project_title`, `project_description`
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-### Built With
-
-- [![Next][Next.js]][Next-url]
-- [![React][React.js]][React-url]
-- [![Vue][Vue.js]][Vue-url]
-- [![Angular][Angular.io]][Angular-url]
-- [![Svelte][Svelte.dev]][Svelte-url]
-- [![Laravel][Laravel.com]][Laravel-url]
-- [![Bootstrap][Bootstrap.com]][Bootstrap-url]
-- [![JQuery][JQuery.com]][JQuery-url]
+This is a module for linting performance of PowerShell modules and scripts. This is performance focused so idiomatic PowerShell is not adhered to. Please consider this when weighing maintainability versus performance needs. This module has use cases when a module is encountering resource exhaustion or if you are trying to reduce the time take for Azure Runbooks. The use-cases are non-exhaustive.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -102,45 +89,92 @@ Here's a blank template to get started: To avoid retyping too much info. Do a se
 
 ## Getting Started
 
-This is an example of how you may give instructions on setting up your project locally.
-To get a local copy up and running follow these simple example steps.
-
 ### Prerequisites
 
-This is an example of how to list things you need to use the software and how to install them.X\
-
-- npm
-
-  ```sh
-  npm install npm@latest -g
-  ```
+No prerequisites required for using this module
 
 ### Installation
 
-1. Get a free API Key at [https://example.com](https://example.com)
-2. Clone the repo
+1. Install/Import the module
 
-   ```sh
-   git clone https://github.com/calvindd2f/pslint.git
+   ```pwsh
+   Install-Module pslint ; Import-Module pslint
    ```
 
-3. Install NPM packages
+2. Call pslint to the target file or scriptblock
 
-   ```sh
-   npm install
+   ```pwsh
+   pslint -Path 'C:\win10_portscan.ps1'
    ```
 
-4. Enter your API in `config.js`
+3. Output
 
-   ```js
-   const API_KEY = "ENTER YOUR API";
-   ```
+   ```pwsh
+    === PowerShell Performance Analysis Report ===
+    Script: C:\Users\c\win10_portscan.ps1
+    Time: 2024-10-08 03:32:45
 
-5. Change git remote url to avoid accidental pushes to base project
+    Summary:
+    Total Issues Found: 19
 
-   ```sh
-   git remote set-url origin calvindd2f/pslint
-   git remote -v # confirm the changes
+    == ArrayAddition (2 issues) ==
+
+      Line 81:
+        Code:
+          $IPList.Add($CurrIP)
+        Suggestion: Consider using ArrayList or Generic List for better performance
+
+      Line 135:
+        Code:
+          $hosts += [PSCustomObject]@{
+            value = "$($($IP.IP).Trim())";
+            port = "$($Port.Trim())";
+            }
+        Suggestion: Consider using ArrayList or Generic List for better performance
+
+    == LargeCollectionLookup (1 issues) ==
+      Line 135:
+        Code:
+        @{
+            value = "$($($IP.IP).Trim())";
+            port = "$($Port.Trim())";
+        }
+        Suggestion: Consider using Dictionary<TKey,TValue> for large collections
+
+    == OutputSuppression (10 issues) ==
+      Line 8:
+        Code: $null|out-null
+        Suggestion: Consider using [void] for better performance
+
+      Line 9:
+        Code: $null|out-null
+        Suggestion: Consider using [void] for better performance
+
+    == WriteHostUsage (6 issues) ==
+      Line 97:
+        Code:
+          Write-Host "WARNING: Scan took longer than 15 seconds, ARP entries may have been flushed. Recommend lowering DelayMS parameter"
+        Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
+      Line 119:
+        Code:
+          Write-host "Started scanning at $($start_time)"
+        Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
+      Line 172:
+        Code:
+          Write-Host "Hosts Found: $($hosts.Count)"
+        Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
+      Line 175:
+        Code:
+          write-host $(ConvertTo-Json $hosts -Depth 5)
+        Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
+      Line 183:
+        Code:
+          Write-Host "Total Time: $($total.ToString())"
+        Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
+      Line 184:
+        Code:
+          Write-Host "Finished scanning at $($end_time)"
+        Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
    ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -149,9 +183,7 @@ This is an example of how to list things you need to use the software and how to
 
 ## Usage
 
-Use this space to show useful examples of how a project can be used. Additional screenshots, code examples and demos work well in this space. You may also link to more resources.
-
-_For more examples, please refer to the [Documentation](https://example.com)_
+_For more examples, please refer to the [Documentation](https://app-support.com)_
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -159,10 +191,13 @@ _For more examples, please refer to the [Documentation](https://example.com)_
 
 ## Roadmap
 
-- [ ] Feature 1
-- [ ] Feature 2
-- [ ] Feature 3
-  - [ ] Nested Feature
+- [x] Reliable detection
+- [x] Beautified Output Formatting
+- [ ] Accurate detection (via extensive testing.)
+- [ ] Pushing module to PSGallery
+- [ ] Conversion to a CI/CD workflow and a dockerfile for the aforemention workflow.
+- [ ] Corective action implementation
+- [ ] Testing
 
 See the [open issues](https://github.com/calvindd2f/pslint/issues) for a full list of proposed features (and known issues).
 
@@ -188,7 +223,7 @@ Don't forget to give the project a star! Thanks again!
 ### Top contributors
 
 <a href="https://github.com/calvindd2f/pslint/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=calvindd2f/pslint" alt="contrib.rocks image" />
+<img src="https://contrib.rocks/image?repo=calvindd2f/pslint" alt="contrib.rocks image" />
 </a>
 
 <!-- LICENSE -->
@@ -203,7 +238,7 @@ Distributed under the MIT License. See `LICENSE.txt` for more information.
 
 ## Contact
 
-Your Name - [@twitter_handle](https://twitter.com/Dreadytofat) - <calvin@app-support.com>
+Your Name - [@Dreadytofat](https://twitter.com/Dreadytofat) - <calvin@app-support.com>
 
 Project Link: [https://github.com/calvindd2f/pslint](https://github.com/calvindd2f/pslint)
 
@@ -214,8 +249,12 @@ Project Link: [https://github.com/calvindd2f/pslint](https://github.com/calvindd
 ## Acknowledgments
 
 - []()
-- []()
-- []()
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+### Built With
+
+![PowerShell 7](https://www.learningkoala.com/media/posts/21/PowerShell_Black_Logo_600x600.png)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -251,3 +290,7 @@ Project Link: [https://github.com/calvindd2f/pslint](https://github.com/calvindd
 [Bootstrap-url]: https://getbootstrap.com
 [JQuery.com]: https://img.shields.io/badge/jQuery-0769AD?style=for-the-badge&logo=jquery&logoColor=white
 [JQuery-url]: https://jquery.com
+
+```
+
+```
