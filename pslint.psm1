@@ -271,7 +271,7 @@ function pslint
                             'ArrayAddition' { 'Consider using ArrayList or Generic List for better performance' }
                             'LargeFileProcessing' { 'Consider using System.IO.StreamReader for large files' }
                             'LargeCollectionLookup' { 'Consider using Dictionary<TKey,TValue> for large collections' }
-                            'WriteHostUsage' { 'Consider using Write-Information or Write-Output' }
+                            'WriteHostUsage' { "Consider using Write-Information, Write-Output or if you are a real CHAD - [console]::writeline(`$message)" }
                             'LargeLoops' { 'Consider breaking down large loops or using .NET methods' }
                             'RepeatedFunctionCalls' { 'Consider caching function results' }
                             'CmdletPipelineWrapping' { 'Consider reducing pipeline complexity' }
