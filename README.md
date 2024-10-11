@@ -83,6 +83,8 @@
 
 This is a module for linting performance of PowerShell modules and scripts. This is performance focused so idiomatic PowerShell is not adhered to. Please consider this when weighing maintainability versus performance needs. This module has use cases when a module is encountering resource exhaustion or if you are trying to reduce the time take for Azure Runbooks. The use-cases are non-exhaustive.
 
+The C# version is currently work in progress. The `system.management.automation` package is not playing nice. The current PoC that compiles (without all features, so not feasible) is available under the [gist]('https://gist.github.com/Calvindd2f/18558b540e46d3a45b65713a869f60d0') 
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- GETTING STARTED -->
