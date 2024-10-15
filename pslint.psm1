@@ -1,37 +1,34 @@
 function pslint
 {
     <#
-        .SYNOPSIS
-        Performance focused powershell linteer.
+    .SYNOPSIS
+    Performance-focused PowerShell linter for analyzing scripts.
 
-        .DESCRIPTION
-        Analyzes a PowerShell script for performance issues.
-        Built on and for PowerShell Core.
-        Support for Windows PowerShell is currently still active, but is not prioritized.
-        It will be announced when support is dropped, it will stop being tested before push afterwards. This does not explicitly mean it will not work.
-        It just means I am under no obligation to answer, action, humour or keep open Issues and Requests relating to the linter on Windows PowerShell a.k.a powershell.exe
+    .DESCRIPTION
+    Analyzes a PowerShell script for performance issues. Supports PowerShell Core and Windows PowerShell.
 
-        .PARAMETER Path
-        The path to the script to analyze.
+    .PARAMETER Path
+    The path to the script to analyze.
 
-        .PARAMETER ScriptBlock
-        The script block to analyze.
+    .PARAMETER ScriptBlock
+    The script block to analyze.
 
-        .EXAMPLE
-        # Analyze a file
-        pslint -Path ".\your-script.ps1"
+    .EXAMPLE
+    Analyze a file:
+    pslint -Path ".\your-script.ps1"
 
-        # Or analyze a scriptblock
-        $sb = { Write-Host "test" }
-        pslint -ScriptBlock $sb
+    Analyze a script block:
+    $sb = { Write-Host "test" }
+    pslint -ScriptBlock $sb
 
-        .NOTES
-        General notes
+    .NOTES
+    General notes
     #>
     [Alias('Scan-PowerShellScriptAdvanced')]
     [CmdletBinding()]
     PARAM (
         [Parameter(ParameterSetName = 'Path')]
+        [ValidateScript({ $_ -match '\.ps1$' })]
         [string]
         $Path,
 
