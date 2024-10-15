@@ -69,7 +69,7 @@ function pslint
             [System.Collections.Generic.List[object]]$ArrayAddition
             [System.Collections.Generic.List[object]]$LargeFileProcessing
             [System.Collections.Generic.List[object]]$LargeCollectionLookup
-            [System.Collections.Generic.List[object]]$WriteHostUsage
+            [System.Collections.Generic.List[object]]$WriteVerboseUsage
             [System.Collections.Generic.List[object]]$LargeLoops
             [System.Collections.Generic.List[object]]$RepeatedFunctionCalls
             [System.Collections.Generic.List[object]]$CmdletPipelineWrapping
@@ -77,15 +77,33 @@ function pslint
 
             CodeAnalysisResults()
             {
-                $this.OutputSuppression = [System.Collections.Generic.List[object]]::new()
-                $this.ArrayAddition = [System.Collections.Generic.List[object]]::new()
-                $this.LargeFileProcessing = [System.Collections.Generic.List[object]]::new()
-                $this.LargeCollectionLookup = [System.Collections.Generic.List[object]]::new()
-                $this.WriteHostUsage = [System.Collections.Generic.List[object]]::new()
-                $this.LargeLoops = [System.Collections.Generic.List[object]]::new()
-                $this.RepeatedFunctionCalls = [System.Collections.Generic.List[object]]::new()
-                $this.CmdletPipelineWrapping = [System.Collections.Generic.List[object]]::new()
-                $this.DynamicObjectCreation = [System.Collections.Generic.List[object]]::new()
+                $this.OutputSuppression = $this.InitializeList()
+                $this.ArrayAddition = $this.InitializeList()
+                $this.LargeFileProcessing = $this.InitializeList()
+                $this.LargeCollectionLookup = $this.InitializeList()
+                $this.WriteVerboseUsage = $this.InitializeList()
+                $this.LargeLoops = $this.InitializeList()
+                $this.RepeatedFunctionCalls = $this.InitializeList()
+                $this.CmdletPipelineWrapping = $this.InitializeList()
+                $this.DynamicObjectCreation = $this.InitializeList()
+            }
+
+            [System.Collections.Generic.List[object]] InitializeList()
+            {
+                return [System.Collections.Generic.List[object]]::new()
+            }
+
+            [void] ClearLists()
+            {
+                $this.OutputSuppression.Clear()
+                $this.ArrayAddition.Clear()
+                $this.LargeFileProcessing.Clear()
+                $this.LargeCollectionLookup.Clear()
+                $this.WriteVerboseUsage.Clear()
+                $this.LargeLoops.Clear()
+                $this.RepeatedFunctionCalls.Clear()
+                $this.CmdletPipelineWrapping.Clear()
+                $this.DynamicObjectCreation.Clear()
             }
         }
     }
