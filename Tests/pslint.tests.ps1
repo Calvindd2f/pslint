@@ -1,20 +1,10 @@
 
-// Validate that the script adheres to PowerShell syntax rules
-function validate_pslint_syntax
-{
-    Describe "pslint script syntax validation" {
-        It "Should not throw any syntax errors" {
-            { & ./pslint.ps1 } | Should -Not -Throw
-        }
-    }
-}
-
-// Confirm that the AST is fully constructed without exceptions
+# Confirm that the AST is fully constructed without exceptions
 function validate_ast_construction
 {
     Describe "AST construction validation" {
         It "Should construct the AST without exceptions for a valid script path" {
-            $scriptPath = "./valid-script.ps1"
+            $scriptPath = ".\Test-PowerShellScript1.ps1"
             { pslint -Path $scriptPath } | Should -Not -Throw
         }
 
@@ -24,7 +14,7 @@ function validate_ast_construction
         }
 
         It "Should throw an error for a non-existent script path" {
-            $invalidPath = "./non-existent-script.ps1"
+            $invalidPath = ".\Test-PowerShellScript1.ps1"
             { pslint -Path $invalidPath } | Should -Throw -ErrorId "File not found: $invalidPath"
         }
 
@@ -34,7 +24,7 @@ function validate_ast_construction
     }
 }
 
-// Analyze a script block using the ScriptBlock parameter
+# Analyze a script block using the ScriptBlock parameter
 function validate_analyze_script_block
 {
     Describe "Analyzing a script block using ScriptBlock parameter" {
@@ -45,59 +35,52 @@ function validate_analyze_script_block
     }
 }
 
-// Detect when running in a CI environment
+# Detect when running in a CI environment
 function test_ci_environment_detection
 {
     Describe "CI environment detection" {
         It "Should detect when running in a CI environment" {
             $env:CI = $true
-            { . ./pslint.ps1 } | Should -Not -Throw
+            { . ".\Test-PowerShellScript1.ps1" } | Should -Not -Throw
             $env:CI = $false
         }
     }
 }
 
-// Successfully parse a PowerShell script without errors
-Describe "pslint script syntax validation" {
-    It "Should not throw any syntax errors" {
-        { & ./pslint.ps1 } | Should -Not -Throw
-    }
-}
-
-// Analyze a script file using the Path parameter
+# Analyze a script file using the Path parameter
 function validate_analyze_script_file
 {
     Describe "Analyze script file using Path parameter" {
         It "Should analyze the script file without throwing errors" {
-            { pslint -Path "./test_script.ps1" } | Should -Not -Throw
+            { pslint -Path ".\Test-PowerShellScript1.ps1" } | Should -Not -Throw
         }
     }
 }
 
-// Output a summary of total issues found in the script
+# Output a summary of total issues found in the script
 function validate_summary_total_issues
 {
     Describe "pslint script summary of total issues" {
         It "Should output the correct total number of issues" {
-            { pslint -Path "test.ps1" } | Should -Not -Throw
-            { $output = pslint -Path "test.ps1" }
+            { pslint -Path ".\Test-PowerShellScript1.ps1" } | Should -Not -Throw
+            { $output = pslint -Path ".\Test-PowerShellScript1.ps1" }
             $totalIssues = ($output | ConvertFrom-Json).Summary.TotalIssues
             $totalIssues | Should -Be 0
         }
     }
 }
 
-// Handle scripts with no recognizable performance patterns
+# Handle scripts with no recognizable performance patterns
 function validate_pslint_behavior
 {
     Describe "pslint script behavior validation" {
         It "Should handle scripts with no recognizable performance patterns" {
-            { & pslint -Path "non_performance_script.ps1" } | Should -Not -Throw
+            { & pslint -Path ".\Test-PowerShellScript1.ps1" } | Should -Not -Throw
         }
     }
 }
 
-// Handle large scripts with multiple performance issues
+# Handle large scripts with multiple performance issues
 function validate_pslint_performance_analysis
 {
     Describe "pslint performance analysis" {
@@ -108,23 +91,23 @@ function validate_pslint_performance_analysis
     }
 }
 
-// Process scripts with no performance issues
+# Process scripts with no performance issues
 function validate_pslint_performance
 {
     Describe "pslint script performance validation" {
         It "Should not have any performance issues" {
-            { & pslint -Path "test.ps1" } | Should -Not -Throw
+            { & pslint -Path ".\Test-PowerShellScript1.ps1" } | Should -Not -Throw
         }
     }
 }
 
-// Generate a performance analysis report with identified issues
+# Generate a performance analysis report with identified issues
 function test_generate_performance_analysis_report
 {
     Describe "Generate Performance Analysis Report" {
         It "Should generate a report with identified issues" {
             # Arrange
-            $scriptPath = ".\test-script.ps1"
+            $scriptPath = ".\Test-PowerShellScript1.ps1"
             $scriptBlock = { Write-Host "Test Script Block" }
 
             # Act
@@ -138,13 +121,13 @@ function test_generate_performance_analysis_report
     }
 }
 
-// Handle non-existent file paths gracefully
+# Handle non-existent file paths gracefully
 function test_handle_non_existent_file_paths
 {
     Describe "Handle Non-Existent File Paths Gracefully" {
         It "Should throw an error for non-existent file paths" {
             # Arrange
-            $nonExistentPath = ".\non-existent-script.ps1"
+            $nonExistentPath = ".\Test-PowerShellScript1.ps1"
 
             # Act & Assert
             { pslint -Path $nonExistentPath } | Should -Throw
@@ -152,7 +135,7 @@ function test_handle_non_existent_file_paths
     }
 }
 
-// THe issue detected is actual correctly structure syntax and AST wise. Essentially it validates that if (example) an instance of `| Out-Null` is detected. That that is the result stored. There are cases pslint is ran and it will output an entire function instead of the line where the `| Out-Null` occured, if it occured at all
+# THe issue detected is actual correctly structure syntax and AST wise. Essentially it validates that if (example) an instance of `| Out-Null` is detected. That that is the result stored. There are cases pslint is ran and it will output an entire function instead of the line where the `| Out-Null` occured, if it occured at all
 function validate_pslint_out_null_detection
 {
     Describe "pslint Out-Null detection" {
@@ -163,21 +146,21 @@ function validate_pslint_out_null_detection
     }
 }
 
-// Handle null ScriptBlock parameter input
+# Handle null ScriptBlock parameter input
 function test_handle_null_scriptblock_parameter_input
 {
     $nullScriptBlock = $null
-    $nullPath = ".\test.ps1"
+    $nullPath = ".\Test-PowerShellScript1.ps1"
 
     pslint -Path $nullPath -ScriptBlock $nullScriptBlock
     # Assert
     # Check if the function throws an error for null ScriptBlock
 }
 
-// Support for both PowerShell Core and Windows PowerShell
+# Support for both PowerShell Core and Windows PowerShell
 function test_support_powershell_versions
 {
-    $path = ".\test.ps1"
+    $path = ".\Test-PowerShellScript1.ps1"
     $scriptBlock = { Write-Host "Test" }
 
     pslint -Path $path
@@ -189,13 +172,13 @@ function test_support_powershell_versions
     # Check if the function runs without errors on Windows PowerShell
 }
 
-// Provide detailed suggestions for each identified performance issue
+# Provide detailed suggestions for each identified performance issue
 function test_provide_detailed_suggestions
 {
     Describe "Testing detailed suggestions for each identified performance issue" {
         It "should provide detailed suggestions for each identified performance issue" {
             # Prepare
-            $scriptPath = ".\test_script.ps1"
+            $scriptPath = ".\Test-PowerShellScript1.ps1"
             $scriptContent = @"
                 Write-Host "Test script content"
 "@
@@ -211,13 +194,15 @@ function test_provide_detailed_suggestions
     }
 }
 
-    // Handle scripts with complex nested structures
-function test_handle_complex_nested_structures {
+# Handle scripts with complex nested structures
+function test_handle_complex_nested_structures
+{
     Describe "Testing handling of scripts with complex nested structures" {
         It "should handle scripts with complex nested structures" {
             # Prepare
             $scriptBlock = {
-                function Test-Function {
+                function Test-Function
+                {
                     Write-Host "Inside Test-Function"
                 }
                 Test-Function

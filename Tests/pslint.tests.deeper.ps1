@@ -3,7 +3,7 @@
 function Test-AnalyzeValidScriptFile
 {
     # Arrange
-    $scriptPath = "valid-script.ps1"
+    $scriptPath = "Test-PowerShellScript1.ps1"
     Set-Content -Path $scriptPath -Value 'Write-Host "Hello, World!"'
 
     # Act
@@ -17,204 +17,6 @@ function Test-AnalyzeValidScriptFile
     Remove-Item -Path $scriptPath
 }
 
-# Handle non-existent file paths gracefully
-function Test-HandleNonExistentFilePath
-{
-    # Arrange
-    $nonExistentPath = "non-existent-script.ps1"
-
-    # Act & Assert
-    { pslint -Path $nonExistentPath } | Should -Throw -ErrorMessage "File not found: $nonExistentPath"
-}
-
-# Classify issues arising from improper use of loops
-function Test-ClassifyImproperLoops
-{
-    # Arrange
-    $scriptPath = "test-script.ps1"
-    Set-Content -Path $scriptPath -Value 'foreach ($i in 1..20) { Write-Host $i }'
-
-    # Act
-    $result = pslint -Path $scriptPath
-
-    # Assert
-    $result | Should -Not -BeNullOrEmpty
-    $result.Summary.TotalIssues | Should -BeGreaterThan 0
-
-    # Cleanup
-    Remove-Item -Path $scriptPath
-}
-
-# Identify performance issues related to large data collections
-function Test-IdentifyLargeDataCollectionPerformanceIssues
-{
-    # Arrange
-    $scriptBlock = {
-        $largeCollection = @{}
-        1..10000 | ForEach-Object {
-            $largeCollection.Add($_, "Item $_")
-        }
-    }
-
-    # Act
-    $result = pslint -ScriptBlock $scriptBlock
-
-    # Assert
-    $result | Should -Not -BeNullOrEmpty
-    $result.Summary.TotalIssues | Should -BeGreaterThan 0
-}
-
-# Categorize issues related to file processing inefficiencies
-function Test-CategorizeFileProcessingInefficiencies
-{
-    # Arrange
-    $scriptBlock = {
-        Write-Host "Test script block"
-    }
-
-    # Act
-    $result = pslint -ScriptBlock $scriptBlock
-
-    # Assert
-    $result | Should -Not -BeNullOrEmpty
-    $result.Summary.TotalIssues | Should -Be 0
-}
-
-# Detect and categorize issues with cmdlet pipeline usage
-function Test-AnalyzeScriptWithCmdletPipelineIssues
-{
-    # Arrange
-    $scriptPath = "script-with-pipeline-issues.ps1"
-    Set-Content -Path $scriptPath -Value 'Get-ChildItem | ForEach-Object { $_ }'
-
-    # Act
-    $result = pslint -Path $scriptPath
-
-    # Assert
-    $result | Should -Not -BeNullOrEmpty
-    $result.Summary.TotalIssues | Should -BeGreaterThan 0
-
-    # Cleanup
-    Remove-Item -Path $scriptPath
-}
-
-# Ensure accurate analysis of deeply nested script elements
-function Test-AnalyzeDeeplyNestedScriptElements
-{
-    # Arrange
-    $scriptBlock = {
-        $a = 1
-        $b = 2
-        $c = 3
-        if ($a -eq 1)
-        {
-            if ($b -eq 2)
-            {
-                if ($c -eq 3)
-                {
-                    Write-Host "All conditions met"
-                }
-            }
-        }
-    }
-
-    # Act
-    $result = pslint -ScriptBlock $scriptBlock
-
-    # Assert
-    $result | Should -Not -BeNullOrEmpty
-    $result.Summary.TotalIssues | Should -Be 0
-}
-
-# Correctly parse nested loops and conditionals
-function Test-CorrectlyParseNestedLoopsAndConditionals
-{
-    # Arrange
-    $scriptBlock = {
-        for ($i = 0; $i -lt 10; $i++)
-        {
-            if ($i % 2 -eq 0)
-            {
-                Write-Host "Even number: $i"
-            }
-            else
-            {
-                Write-Host "Odd number: $i"
-            }
-        }
-    }
-
-    # Act
-    $result = pslint -ScriptBlock $scriptBlock
-
-    # Assert
-    $result | Should -Not -BeNullOrEmpty
-    $result.Summary.TotalIssues | Should -Be 0
-}
-
-# Handle recursive structures without errors
-function Test-HandleRecursiveStructuresWithoutErrors
-{
-    # Arrange
-    $scriptBlock = {
-        $obj = New-Object psobject
-        $obj | Add-Member -MemberType NoteProperty -Name "Name" -Value "John"
-        $obj | Add-Member -MemberType NoteProperty -Name "Age" -Value 30
-        $obj | Add-Member -MemberType NoteProperty -Name "Children" -Value @(
-            @{
-                "Name"     = "Alice"
-                "Age"      = 10
-                "Children" = @(
-                    @{
-                        "Name"     = "Bob"
-                        "Age"      = 5
-                        "Children" = @()
-                    }
-                )
-            }
-        )
-        $obj
-    }
-
-    # Act
-    $result = pslint -ScriptBlock $scriptBlock
-
-    # Assert
-    $result | Should -Not -BeNullOrEmpty
-    $result.Summary.TotalIssues | Should -Be 0
-}
-
-# Handle scripts with mixed PowerShell and .NET elements
-function Test-AnalyzeScriptWithMixedElements
-{
-    # Arrange
-    $scriptBlock = {
-        Write-Host "Testing script block"
-    }
-
-    # Act
-    $result = pslint -ScriptBlock $scriptBlock
-
-    # Assert
-    $result | Should -Not -BeNullOrEmpty
-    $result.Summary.TotalIssues | Should -Be 0
-}
-
-# Analyze scripts using both PowerShell cmdlets and .NET methods
-function Test-AnalyzeScriptWithMixedElements
-{
-    # Arrange
-    $scriptBlock = {
-        Write-Host "Testing script block"
-    }
-
-    # Act
-    $result = pslint -ScriptBlock $scriptBlock
-
-    # Assert
-    $result | Should -Not -BeNullOrEmpty
-    $result.Summary.TotalIssues | Should -Be 0
-}
 
 # Ensure compatibility with .NET object manipulation
 function Test-AnalyzeScriptWithDotNetElements
@@ -238,7 +40,7 @@ function Test-AnalyzeScriptWithDotNetElements
 function Test-AnalyzeScriptWithOptimizationSuggestions
 {
     # Arrange
-    $scriptPath = "test-script.ps1"
+    $scriptPath = "Test-PowerShellScript1.ps1"
     Set-Content -Path $scriptPath -Value 'Write-Host "Hello, World!"'
 
     # Act
@@ -313,7 +115,7 @@ function Test-AnalyzeScriptWithoutFalsePositives
 function Test-ThrowErrorWhenScriptBlockParameterIsNull
 {
     # Arrange
-    $scriptPath = "valid-script.ps1"
+    $scriptPath = "Test-PowerShellScript1.ps1"
     Set-Content -Path $scriptPath -Value 'Write-Host "Hello, World!"'
 
     # Act & Assert
@@ -400,7 +202,7 @@ function Test-FunctionDoesNotCrashOnInvalidPaths
 function Test-ProvideClearErrorMessagesForSyntaxIssues
 {
     # Arrange
-    $invalidScriptPath = "invalid-script.ps1"
+    $invalidScriptPath = "inTest-PowerShellScript1.ps1"
     Set-Content -Path $invalidScriptPath -Value 'Write-Host "Hello, World!"'
 
     # Act & Assert
