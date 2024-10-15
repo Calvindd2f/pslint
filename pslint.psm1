@@ -225,7 +225,7 @@ function pslint
                     $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
                     $n.Body.Extent.Text -match 'for\s*\('
                 }
-            }, $true) | ForEach-Object { $results.OutputSuppression.Add($_) }
+            }, $true) | ForEach-Object { $results.RepeatedFunctionCalls.Add($_) }
 
 
         $ast.FindAll({
@@ -235,7 +235,7 @@ function pslint
                     $n -is [System.Management.Automation.Language.PipelineAst] -and
                     $n.PipelineElements.Count -gt 2
                 }
-            }, $true) | ForEach-Object { $results.OutputSuppression.Add($_) }
+            }, $true) | ForEach-Object { $results.CmdletPipelineWrapping.Add($_) }
 
 
         $ast.FindAll({
@@ -250,7 +250,7 @@ function pslint
                     $n.Member.Value -eq 'Properties' -and
                     $n.Expression.TypeName.Name -eq 'PSObject')
                 }
-            }, $true) | ForEach-Object { $results.OutputSuppression.Add($_) }
+            }, $true) | ForEach-Object { $results.DynamicObjectCreation.Add($_) }
     }
 
     END
