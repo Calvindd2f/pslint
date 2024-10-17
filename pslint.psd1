@@ -1,11 +1,11 @@
 @{
-    RootModule           = 'pslint'
+    RootModule           = 'pslint.psm1'
 
     Author               = 'Calvin Bergin <Calvindd2f>'
 
-    CompanyName          = n/a
+    CompanyName          = 'Calvindd2f'
 
-    ModuleVersion        = '1'
+    ModuleVersion        = '1.0.0'
 
     GUID                 = 'bc931fbd-b205-45be-9ecf-4f9db144998b'
 
@@ -13,7 +13,7 @@
 
     Description          = 'Performance focused linter for PowerShell scripts and Modules'
 
-    PowerShellVersion    = '5.1'
+    PowerShellVersion    = '5.1.0'
 
     CompatiblePSEditions = @('Desktop', 'Core')
 
@@ -25,18 +25,17 @@
 
     PrivateData          = @{
         PSData = @{
-            Tags         = @('performance', 'lint', 'ci')
+            Tags         = @('Performance', 'lint', 'Memory Optimized','Non-Idiomatic','Elitism','Workflow Safe')
 
-            LicenseUri   = ''
+            LicenseUri   = 'https://opensource.org/license/mit'
 
-            ProjectUri   = ''
+            ProjectUri   = 'https://github.com/calvindd2f/pslint'
 
-            IconUri      = ''
+            IconUri      = 'https://app-support.com/public/img/plint.webp'
 
-            ReleaseNotes = @'
-'@
+            ReleaseNotes = 'Initial push to PSGallery'
         }
     }
 
-    # HelpInfoURI = ''
+    HelpInfoURI          = 'https://app-support.com/'
 }
