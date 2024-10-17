@@ -1,9 +1,0 @@
-- name: Publish PowerShell Module to PowerShellGallery
-uses: mod-posh/PublishPowerShellModule@v0.0.1.0
-with:
-    ModuleName:
-    Source: 
-    Output:
-    ApiKey:
-    Debug:
-

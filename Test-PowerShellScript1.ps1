@@ -370,12 +370,12 @@ foreach ($action in $actions)
         }
     }
 
-    if ($file -eq $null)
+    if ($null -eq $file)
     {
         $filename = $url.Split("/")[-1]
         $file = "$tmp_dir\$filename"
     }
-    if ($url -ne $null)
+    if ($null -ne $url)
     {
         Download-File -url $url -path $file
     }

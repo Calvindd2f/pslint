@@ -1,0 +1,99 @@
+name: PSCI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  psscriptanalyzer:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: PowerShell Module Cache
+        id: _c232508244db4fd897e4b9e04710cc76
+        uses: potatoqualitee/psmodulecache@v6.2
+        with:
+          modules-to-cache: PSScriptAnalyzer, Pester, pslint, psake
+
+      - name: Run pslint
+        shell: pwsh
+        id: '_015b8608ba8c4057b2d443b0cf38ac62'
+        run: |
+          Import-Module ./pslint.psm1;
+          try{
+            pslint -Path ./Test-PowerShellScript1.ps1;
+            pslint -Path ./test-script-eggregious.ps1;
+            [console]::WriteLine('Both sample scripts passed without shitting the bed')
+          }catch{write-error}
+          [console]::Writeline('pslint functionality test / breaking change check complete')
+
+      - name: Publish PowerShell Module to PowerShellGallery
+        id: _38ad555c65014b818d792b3b7abd1b2b
+        uses: mod-posh/PublishPowerShellModule@v0.0.1.0
+        with:
+          ModuleName: 'pslint'
+          Output: 'pslint/dist'
+          ApiKey: ${{ secrets.NUGETAPIKEY }}
+          Debug: 'true'
+
+      - name: Run PSScriptAnalyzer
+        id: _e0a3d4e558104409b61a28bba331e88a
+        uses: microsoft/psscriptanalyzer-action@v1.1
+        with:
+          recurse: $true
+          customRulePath: .github/workflows/PSScriptAnalyzerSettings.psd1
+
+      # Not using microsoft/psscriptanalyzer-action@v1.0 because we're missing psm1 in src + need to exclude generated ps1xml
+      #- name: Run PSScriptAnalyzer if not psm1
+      #  id: _27927a8cb26b43018b8eefd1d4deb99d
+      #  shell: pwsh
+      #  run: |
+      #    $rootfiles=gci [environment::currentdirectory
+      #    if($rootfiles -notcontains "*.psm1"){return}else{continue}
+      #    Import-Module ConvertToSARIF -Force
+      #
+      #    Get-ChildItem -Path ./src/ -Filter *.ps* -Recurse -File |
+      #    Where-Object { $_.Name -ne 'Sync-WithProfiler.ps1' } |
+      #    Invoke-ScriptAnalyzer -Settings ./.github/workflows/PSScriptAnalyzerSettings.psd1 |
+      #    ConvertTo-SARIF -FilePath results.sarif
+
+      # - name: Test PowerShell Module
+      #    id: _baa1ace4bf484e1abe28594876984019
+      #  uses: 
+      #  with:
+      #    input:
+
+      # - name: Build PowerShell Module
+      #  id: _83694d09914143d28d87f3f4521bb663
+      #  uses: 
+      #  with:
+      #    input:
+
+  # codeql:
+  #   name: CodeQL C#
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     actions: read
+  #     contents: read
+  #     security-events: write
+  #   steps:
+  #   - name: Checkout repository
+  #     uses: actions/checkout@v3
+
+  #   - name: Initialize CodeQL
+  #     uses: github/codeql-action/init@v2
+  #     with:
+  #       languages: csharp
+
+  #   - name: Autobuild
+  #     uses: github/codeql-action/autobuild@v2
+
+  #   - name: Perform CodeQL Analysis
+  #     uses: github/codeql-action/analyze@v2
