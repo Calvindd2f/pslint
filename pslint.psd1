@@ -17,11 +17,13 @@
 
     CompatiblePSEditions = @('Desktop', 'Core')
 
-    FunctionsToExport    = @('pslint')
+    FunctionsToExport    = @('pslint') # Also ensure all three entries are present
 
     AliasesToExport      = @('Scan-PowerShellScriptAdvanced')
 
-    VariablesToExport    = @('')
+    VariablesToExport    = @()  # Specify an empty array, not $null
+
+    CmdletsToExport      = @()  #  A missing or $null entry is equivalent to specifying the wildcard *
 
     PrivateData          = @{
         PSData = @{

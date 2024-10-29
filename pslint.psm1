@@ -70,9 +70,10 @@ function pslint
         {
             [System.Collections.Generic.List[object]]$OutputSuppression
             [System.Collections.Generic.List[object]]$ArrayAddition
+            [System.Collections.Generic.List[object]]$StringAddition
             [System.Collections.Generic.List[object]]$LargeFileProcessing
             [System.Collections.Generic.List[object]]$LargeCollectionLookup
-            [System.Collections.Generic.List[object]]$WriteVerboseUsage
+            [System.Collections.Generic.List[object]]$WriteHostUsage
             [System.Collections.Generic.List[object]]$LargeLoops
             [System.Collections.Generic.List[object]]$RepeatedFunctionCalls
             [System.Collections.Generic.List[object]]$CmdletPipelineWrapping
@@ -82,9 +83,10 @@ function pslint
             {
                 $this.OutputSuppression = $this.InitializeList()
                 $this.ArrayAddition = $this.InitializeList()
+                $this.StringAddition = $this.InitializeList()
                 $this.LargeFileProcessing = $this.InitializeList()
                 $this.LargeCollectionLookup = $this.InitializeList()
-                $this.WriteVerboseUsage = $this.InitializeList()
+                $this.WriteHostUsage = $this.InitializeList()
                 $this.LargeLoops = $this.InitializeList()
                 $this.RepeatedFunctionCalls = $this.InitializeList()
                 $this.CmdletPipelineWrapping = $this.InitializeList()
@@ -100,9 +102,10 @@ function pslint
             {
                 $this.OutputSuppression.Clear()
                 $this.ArrayAddition.Clear()
+                $this.StringAddition.Clear()
                 $this.LargeFileProcessing.Clear()
                 $this.LargeCollectionLookup.Clear()
-                $this.WriteVerboseUsage.Clear()
+                $this.WriteHostUsage.Clear()
                 $this.LargeLoops.Clear()
                 $this.RepeatedFunctionCalls.Clear()
                 $this.CmdletPipelineWrapping.Clear()
@@ -135,6 +138,7 @@ function pslint
             }
         }
 
+        # Check for Output Suppression
         $ast.FindAll({
                 param($node)
                 Test-NodeSafely -Node $node -Condition {
@@ -159,6 +163,7 @@ function pslint
                 }
             }, $true) | Where-Object { $null -ne $_ } | ForEach-Object { $results.OutputSuppression.Add($_) }
 
+        # Check for ArrayAddition
         $ast.FindAll({
                 param($node)
                 Test-NodeSafely -Node $node -Condition {
@@ -175,6 +180,65 @@ function pslint
                 }
             }, $true) | Where-Object { $null -ne $_ } | ForEach-Object { $results.ArrayAddition.Add($_) }
 
+        # Check for StringAddition
+        <# Find StringBuilder usage
+        $ast.FindAll({
+                param($node)
+                Test-NodeSafely -Node $node -Condition {
+                    param($n)
+                $node -is [System.Management.Automation.Language.TypeExpressionAst] -and
+                $node.TypeName.FullName -eq 'System.Text.StringBuilder'
+                }, $true } ) | Where-Object { $null -ne $_ } | ForEach-Object { $results.StringAddition.Add($_) }
+
+        # Find Join operator usage
+        $ast.FindAll({
+                param($node)
+                Test-NodeSafely -Node $node -Condition {
+                    param($n)
+                $node -is [System.Management.Automation.Language.BinaryExpressionAst] -and
+                $node.Operator -eq 'Join'
+                }, $true } ) | Where-Object { $null -ne $_ } | ForEach-Object { $results.StringAddition.Add($_) }
+
+        #>
+        # Find += operator usage with strings
+        $ast.FindAll({
+                param($node)
+                Test-NodeSafely -Node $node -Condition {
+                    param($n)
+                    $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+                    $node.Operator -eq 'PlusEquals'
+                }, $true } ) | Where-Object { $null -ne $_ } | ForEach-Object { $results.StringAddition.Add($_) }
+
+        # Find string format usage (-f operator)
+        $ast.FindAll({
+                param($node)
+                Test-NodeSafely -Node $node -Condition {
+                    param($n)
+                    $node -is [System.Management.Automation.Language.BinaryExpressionAst] -and
+                    $node.Operator -eq 'Format'
+                }, $true } ) | Where-Object { $null -ne $_ } | ForEach-Object { $results.StringAddition.Add($_) }
+
+        # Find string concatenation using + operator
+        $ast.FindAll({
+                param($node)
+                Test-NodeSafely -Node $node -Condition {
+                    param($n)
+                    $node -is [System.Management.Automation.Language.BinaryExpressionAst] -and
+                    $node.Operator -eq 'Plus' -and
+            ($node.Left -is [System.Management.Automation.Language.StringConstantExpressionAst] -or
+                    $node.Right -is [System.Management.Automation.Language.StringConstantExpressionAst])
+                }, $true } ) | Where-Object { $null -ne $_ } | ForEach-Object { $results.StringAddition.Add($_) }
+
+        # Find subexpression usage in strings
+        $ast.FindAll({
+                param($node)
+                Test-NodeSafely -Node $node -Condition {
+                    param($n)
+                    $node -is [System.Management.Automation.Language.ExpandableStringExpressionAst] -and
+                    $node.NestedExpressions.Count -gt 0
+                }, $true } ) | Where-Object { $null -ne $_ } | ForEach-Object { $results.StringAddition.Add($_) }
+
+        # Check for Large File Processing
         $ast.FindAll({
                 param($node)
                 Test-NodeSafely -Node $node -Condition {
@@ -189,6 +253,7 @@ function pslint
                 }
             }, $true) | ForEach-Object { $results.LargeFileProcessing.Add($_) }
 
+        # Check for LargeCollectionLookup
         $ast.FindAll({
                 param($node)
                 Test-NodeSafely -Node $node -Condition {
@@ -197,7 +262,7 @@ function pslint
                 }
             }, $true) | ForEach-Object { $results.LargeCollectionLookup.Add($_) }
 
-
+        # Check for WriteHostUsage
         $ast.FindAll({
                 param($node)
                 Test-NodeSafely -Node $node -Condition {
@@ -207,7 +272,17 @@ function pslint
                 }
             }, $true) | ForEach-Object { $results.WriteHostUsage.Add($_) }
 
+        <# Check for WriteHostUsage
+        $ast.FindAll({
+                param($node)
+                Test-NodeSafely -Node $node -Condition {
+                    param($n)
+                    $n -is [System.Management.Automation.Language.CommandAst] -and
+                    $n.CommandElements[0].Value -eq '[console]::writeline'
+                }
+            }, $true) | ForEach-Object { $results.WriteHostUsage.Add($_) }#>
 
+        # CHeck for LargeLoops
         $ast.FindAll({
                 param($node)
                 Test-NodeSafely -Node $node -Condition {
@@ -220,7 +295,7 @@ function pslint
                 }
             }, $true) | ForEach-Object { $results.LargeLoops.Add($_) }
 
-
+        # Check for RepeatedFunctionCalls
         $ast.FindAll({
                 param($node)
                 Test-NodeSafely -Node $node -Condition {
@@ -230,7 +305,7 @@ function pslint
                 }
             }, $true) | ForEach-Object { $results.RepeatedFunctionCalls.Add($_) }
 
-
+        # Check for CmdletPipelineWrapping
         $ast.FindAll({
                 param($node)
                 Test-NodeSafely -Node $node -Condition {
@@ -240,7 +315,7 @@ function pslint
                 }
             }, $true) | ForEach-Object { $results.CmdletPipelineWrapping.Add($_) }
 
-
+        # Check for DynamicObjectCreation
         $ast.FindAll({
                 param($node)
                 Test-NodeSafely -Node $node -Condition {
@@ -287,6 +362,7 @@ function pslint
                         {
                             'OutputSuppression' { 'Consider using [void] for better performance' }
                             'ArrayAddition' { 'Consider using ArrayList or Generic List for better performance' }
+                            'StringAddition' { 'Consider using -Join or String Buider for better performance' }
                             'LargeFileProcessing' { 'Consider using System.IO.StreamReader for large files' }
                             'LargeCollectionLookup' { 'Consider using Dictionary<TKey,TValue> for large collections' }
                             'WriteHostUsage' { "Consider using Write-Information, Write-Output or if you are a real CHAD - [console]::writeline(`$message)" }
