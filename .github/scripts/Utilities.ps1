@@ -1,6 +1,5 @@
 #region Utilities
-function Replace-Secret
-{
+function Replace-Secret {
     <#
     .SYNOPSIS
     Replaces a specified string (such as a secret) in a file with a new string.
@@ -44,70 +43,56 @@ function Replace-Secret
         [string]$NewString
     )
 
-    begin
-    {
-        if (-not (Test-Path -Path $FilePath))
-        {
+    begin {
+        if (-not (Test-Path -Path $FilePath)) {
             throw "File not found: $FilePath"
         }
 
         $content = Get-Content -Path $FilePath -Raw
     }
 
-    process
-    {
-        try
-        {
+    process {
+        try {
             $escapedOldString = [regex]::Escape($OldString)
 
             $pattern = "(?<=(?:'|\`"|=))$escapedOldString(?=(?:'|\`"))"
 
             $newContent = $content -replace $pattern, $NewString
 
-            if ($newContent -eq $content)
-            {
+            if ($newContent -eq $content) {
                 [console]::WriteLine('No occurrences of the specified string were found in the file.')
             }
-            else
-            {
+            else {
                 Set-Content -Path $FilePath -Value $newContent
                 [console]::WriteLine("Replacement complete in file: $FilePath")
             }
         }
-        catch
-        {
+        catch {
             throw "An error occurred: $($_.Exception.Message)"
         }
     }
 }
 
-Function Sign-Scripts($cert = (Get-ChildItem –Path Cert:\LocalMachine\My\31C4E1F8BAA0736E284BCD4FA91803457509308E), [string]$FilePath)
-{
-    try
-    {
+Function Sign-Scripts($cert = (Get-ChildItem –Path Cert:\LocalMachine\My\31C4E1F8BAA0736E284BCD4FA91803457509308E), [string]$FilePath) {
+    try {
         Set-AuthenticodeSignature -FilePath $FilePath -Certificate $cert -TimestampServer https://timestamp.digicert.com
     }
-    catch
-    {
+    catch {
         throw ($_.Exception.Message)
     }
 
     [console]::writeline(" | File: $FilePath has been signed with certificate: $cert.Subject | ")
 }
 
-class StringSlicer
-{
+class StringSlicer {
     [string]$StringValue
 
-    StringSlicer([string]$initialValue)
-    {
+    StringSlicer([string]$initialValue) {
         $this.StringValue = $initialValue
     }
 
-    [string] Slice([int]$start, [int]$length)
-    {
-        if ($length -eq 0 -or $start -ge $this.StringValue.Length)
-        {
+    [string] Slice([int]$start, [int]$length) {
+        if ($length -eq 0 -or $start -ge $this.StringValue.Length) {
             return ''
         }
         $substring = $this.StringValue.Substring($start, [math]::Min($length, $this.StringValue.Length - $start))
@@ -115,20 +100,16 @@ class StringSlicer
     }
 }
 
-Function GetContact($email, $query, $companyid, $userObjectToAction, $retry = 5)
-{
-    if ($Global:Debug)
-    {
+Function GetContact($email, $query, $companyid, $userObjectToAction, $retry = 5) {
+    if ($Global:Debug) {
         [Console]::ForegroundColor = 'Yellow'
         [Console]::WriteLine($("`r`n`r`n==FUNC==CALLED===== -->{0}<--`r`n====ARGs=START======`r`n{1}`r`n====ARGs=END========`r`n" -f $MyInvocation.MyCommand, $(ConvertTo-Json $PSBoundParameters)))
     }
     if ($Global:Debug) { [Console]::WriteLine( "========================= GetContact params email, query, companyid,: $email, $query, $companyid,") }
-    if ($query -eq 'Name')
-    {
+    if ($query -eq 'Name') {
         $querystring = '?conditions=firstName="' + $($data.firstname) + '" AND lastName="' + $($data.lastname) + '"&company/id=' + $companyid
     }
-    elseif ($query -eq 'Email')
-    {
+    elseif ($query -eq 'Email') {
         # 2 things to note:
         # 1. We should use equal query here for email as this is uniq identifier. With 'LIKE' query we may catch many similar emails:
         # like '%name@domain.com%' will get emails name@domain.com, myname@domain.com, name@domain.com.au ...
@@ -136,8 +117,7 @@ Function GetContact($email, $query, $companyid, $userObjectToAction, $retry = 5)
         # use of '%25' (which is actual url encoded value of '%') encouraged.
         $querystring = '?childconditions=communicationItems/value="' + $($email) + '" AND communicationItems/communicationType="Email"' + '&conditions=company/id=' + $companyid
     }
-    else
-    {
+    else {
         if ($Global:Debug) { [Console]::WriteLine( '========================= just before returning null') }
         return $null
     }
@@ -149,10 +129,8 @@ Function GetContact($email, $query, $companyid, $userObjectToAction, $retry = 5)
     $RetryCount = 0
     $RetryCodes = @(503, 504, 520, 521, 522, 524)
     $FailCodes = @(400, 404)
-    while ($RetryCount -lt $retry -and $success -eq $false)
-    {
-        try
-        {
+    while ($RetryCount -lt $retry -and $success -eq $false) {
+        try {
             $request = [System.Net.HttpWebRequest]::Create("$CW_Api_Url/apis/3.0/company/contacts$querystring")
 
             $request.Method = 'GET';
@@ -163,8 +141,7 @@ Function GetContact($email, $query, $companyid, $userObjectToAction, $retry = 5)
             $request.Headers['clientId'] = $CW_Api_Client_Id;
             $request.Timeout = 10000
 
-            if ($Global:Debug)
-            {
+            if ($Global:Debug) {
                 $REQUEST = [System.Text.StringBuilder]::new();
                 $REQUEST.AppendLine($("============================ HTTP REQUEST ============================$([Environment]::NewLine)"));
                 $REQUEST.AppendLine($("HTTP Method:$([Environment]::NewLine){requestClone.Method}$([Environment]::NewLine)"));
@@ -179,16 +156,14 @@ Function GetContact($email, $query, $companyid, $userObjectToAction, $retry = 5)
             $jsonResult = $reader.ReadToEnd();
             $response.Dispose();
 
-            if ($Global:Debug)
-            {
+            if ($Global:Debug) {
                 $RESPONSE = [System.Text.StringBuilder]::new();
                 $RESPONSE.AppendLine($("============================ HTTP RESPONSE ============================$([Environment]::NewLine)"));
                 $RESPONSE.AppendLine($("Status Code:$([Environment]::NewLine){response.StatusCode}$([Environment]::NewLine)"));
                 $RESPONSE.AppendLine($("Headers:$([Environment]::NewLine){HeadersToString(response.Headers)}$([Environment]::NewLine)"));
                 $RESPONSE.AppendLine($("Body:$([Environment]::NewLine){SanitizeBody(body)}$([Environment]::NewLine)"));
 
-                if ($null -eq $RESPONSE)
-                {
+                if ($null -eq $RESPONSE) {
                     return [string]::Empty;
                 }
 
@@ -199,8 +174,7 @@ Function GetContact($email, $query, $companyid, $userObjectToAction, $retry = 5)
             [array]$returnedObject = $jsonResult | ConvertFrom-Json
             if ($Global:Debug) { [Console]::WriteLine( "`r`n===================== Count of found objects: $($returnedObject.Count) `r`n") }
 
-            if ($Global:Debug)
-            {
+            if ($Global:Debug) {
                 $INFO = [System.Text.StringBuilder]::new();
                 $INFO.AppendLine($("================================ ERROR ================================$([Environment]::NewLine)"));
                 $INFO.AppendLine($("{odataError?.Message}$([Environment]::NewLine)"));
@@ -211,16 +185,13 @@ Function GetContact($email, $query, $companyid, $userObjectToAction, $retry = 5)
                 return $INFO.ToString();
             }
 
-            if ($returnedObject.Count -gt 1)
-            {
-                foreach ($contactItem in $returnedObject)
-                {
+            if ($returnedObject.Count -gt 1) {
+                foreach ($contactItem in $returnedObject) {
                     if ($Global:Debug) { Write-Host "=====================ContactItem===> $($contactItem)" }
                     if ($Global:Debug) { Write-Host "=====================ContactItem>>>> $($contactItem.id)" }
                     if ($Global:Debug) { Write-Host "=====================ContactItem>>>> $($contactItem.firstName) Compare to $($userObjectToAction.firstName)" }
                     if ($Global:Debug) { Write-Host "=====================ContactItem>>>> $($contactItem.lastName) Compare to $($userObjectToAction.lastName)" }
-                    If (($contactItem.firstName -eq $userObjectToAction.firstName) -and ($contactItem.lastName -eq $userObjectToAction.lastName))
-                    {
+                    If (($contactItem.firstName -eq $userObjectToAction.firstName) -and ($contactItem.lastName -eq $userObjectToAction.lastName)) {
                         $success = $true
                         return $( $contactItem  )
                     }
@@ -228,35 +199,30 @@ Function GetContact($email, $query, $companyid, $userObjectToAction, $retry = 5)
                 $success = $true
                 return $( $jsonResult | ConvertFrom-Json)
             }
-            else
-            {
+            else {
                 $success = $true
                 return $( $jsonResult | ConvertFrom-Json)
             }
 
         }
-        catch
-        {
+        catch {
             if ($Global:Debug) { [Console]::WriteLine( "========================= WARNING: $($_.Exception.Message)") }
             [Console]::WriteLine( "========================= WARNING: $( ConvertTo-json $_.Exception)")
             # Geeting the actual numeric value for the error code.
             # When we run through Env we will get nested InnerException inside the
             # parent InnerException as we are utilising a HTTP WebClient Wrapper on top
             # of the environment
-            if ( Test-Path variable:global:psISE )
-            {
+            if ( Test-Path variable:global:psISE ) {
                 if ($Global:Debug) { [Console]::WriteLine( '==================Running package locally for debugging===========') }
                 $ErrorCode = $_.Exception.InnerException.Response.StatusCode.value__
             }
-            else
-            {
+            else {
                 if ($Global:Debug) { [Console]::WriteLine( '========================= Running package in MxS') }
                 $ErrorCode = $_.Exception.InnerException.InnerException.Response.StatusCode.value__
             }
             if ($Global:Debug) { [Console]::WriteLine( "========================= Errorcode: $ErrorCode") }
             # Checking if we got any of Fail Codes
-            if ($ErrorCode -in $FailCodes)
-            {
+            if ($ErrorCode -in $FailCodes) {
                 # Setting the variables to make activity Fail
                 $success = $false;
                 $activityOutput.success = $false;
@@ -265,24 +231,20 @@ Function GetContact($email, $query, $companyid, $userObjectToAction, $retry = 5)
                 Write-Warning "Warning: $($_.Exception.Message)"
                 return $null;
             }
-            if ($ErrorCode -in $RetryCodes)
-            {
+            if ($ErrorCode -in $RetryCodes) {
                 $RetryCount++
 
-                if ($RetryCount -eq $retry)
-                {
+                if ($RetryCount -eq $retry) {
                     if ($Global:Debug) { [Console]::WriteLine( '========================= WARNING: Retry limit reached.') }
                 }
-                else
-                {
+                else {
                     if ($Global:Debug) { [Console]::WriteLine( "========================= Waiting $WaitTime seconds.") }
                     Start-Sleep -Seconds $WaitTime
                     if ($Global:Debug) { [Console]::WriteLine( '========================= Retrying.') }
                 }
 
             }
-            else
-            {
+            else {
                 return $null;
             }
         }
@@ -292,36 +254,35 @@ Function GetContact($email, $query, $companyid, $userObjectToAction, $retry = 5)
 #endregion
 
 #region variables
-    # Dynamics
-    $MSGRAPH_Api_Token_App;
-    $MSGRAPH_Api_Token_Client;
+# Dynamics
+$MSGRAPH_Api_Token_App;
+$MSGRAPH_Api_Token_Client;
 
-    $EXO_Api_Token_App;
-    $EXO_Api_Token_Client;
+$EXO_Api_Token_App;
+$EXO_Api_Token_Client;
 
-    $AZURE_Api_Token_Client;
-    $AZURE_Api_Token_App;
+$AZURE_Api_Token_Client;
+$AZURE_Api_Token_App;
 
-    $RC_Api_Token
-    $RC_Bot_Token
-    $RC_Api_Sandbox_Token
-    $RC_Bot_Sandbox_Token
+$RC_Api_Token
+$RC_Bot_Token
+$RC_Api_Sandbox_Token
+$RC_Bot_Sandbox_Token
 
-    $Ctx_CW_Ticket_Id
+$Ctx_CW_Ticket_Id
 
-    # Constants
-    $Ctx_Client_MSTenant_Id;
-    $Ctx_Client_MSTenant_Name;
-    $Ctx_Client_Id
+# Constants
+$Ctx_Client_MSTenant_Id;
+$Ctx_Client_MSTenant_Name;
+$Ctx_Client_Id
 
-    $SP_Url;
+$SP_Url;
 #endregion
 
 #region TokenMgmt
 # Token configuration class to store token metadata
 
-class TokenConfig
-{
+class TokenConfig {
     [string]$Name
     [string]$Type  # App or Client
     [string]$Service # MSGRAPH, EXO, AZURE, RC
@@ -330,8 +291,7 @@ class TokenConfig
     [datetime]$LastRefreshed
     [int]$ExpiryMinutes
 
-    TokenConfig([string]$name, [string]$type, [string]$service, [int]$expiryMinutes)
-    {
+    TokenConfig([string]$name, [string]$type, [string]$service, [int]$expiryMinutes) {
         $this.Name = $name
         $this.Type = $type
         $this.Service = $service
@@ -340,8 +300,7 @@ class TokenConfig
     }
 }
 
-function Initialize-TokenManager
-{
+function Initialize-TokenManager {
     [CmdletBinding()]
     param()
 
@@ -367,8 +326,7 @@ function Initialize-TokenManager
     }
 }
 
-function Debug-TokenStatus
-{
+function Debug-TokenStatus {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $false)]
@@ -378,20 +336,16 @@ function Debug-TokenStatus
         [switch]$Detailed
     )
 
-    begin
-    {
-        if (-not $Global:TokenRegistry)
-        {
+    begin {
+        if (-not $Global:TokenRegistry) {
             Initialize-TokenManager
         }
     }
 
-    process
-    {
+    process {
         $results = @()
 
-        foreach ($token in $Global:TokenRegistry.Keys)
-        {
+        foreach ($token in $Global:TokenRegistry.Keys) {
             $config = $Global:TokenRegistry[$token]
             $tokenValue = Get-Variable -Name $config.Name -ErrorAction SilentlyContinue
 
@@ -408,8 +362,7 @@ function Debug-TokenStatus
                 HasValue         = ($null -ne $tokenValue)
             }
 
-            if ($Detailed)
-            {
+            if ($Detailed) {
                 $status | Add-Member -MemberType NoteProperty -Name "Value" -Value $(
                     if ($tokenValue) { "<token present>" } else { "<no token>" }
                 )
@@ -417,17 +370,14 @@ function Debug-TokenStatus
 
             $results += $status
 
-            if ($RefreshExpired -and $isExpired)
-            {
+            if ($RefreshExpired -and $isExpired) {
                 Write-Host "Refreshing expired token: $($config.Name)" -ForegroundColor Yellow
-                try
-                {
+                try {
                     & $config.RefreshFunction
                     $config.LastRefreshed = Get-Date
                     Write-Host "Token refreshed successfully" -ForegroundColor Green
                 }
-                catch
-                {
+                catch {
                     Write-Host "Failed to refresh token: $_" -ForegroundColor Red
                 }
             }
@@ -437,8 +387,7 @@ function Debug-TokenStatus
     }
 }
 
-function Register-TokenRefreshFunction
-{
+function Register-TokenRefreshFunction {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
@@ -448,34 +397,29 @@ function Register-TokenRefreshFunction
         [scriptblock]$RefreshFunction
     )
 
-    if ($Global:TokenRegistry.ContainsKey($TokenName))
-    {
+    if ($Global:TokenRegistry.ContainsKey($TokenName)) {
         $Global:TokenRegistry[$TokenName].RefreshFunction = $RefreshFunction
         Write-Host "Refresh function registered for token: $TokenName" -ForegroundColor Green
     }
-    else
-    {
+    else {
         Write-Host "Token not found in registry: $TokenName" -ForegroundColor Red
     }
 }
 
 # Token refresh implementation for various services
-class TokenRefreshResult
-{
+class TokenRefreshResult {
     [bool]$Success
     [string]$Token
     [string]$_error
 
-    TokenRefreshResult([bool]$success, [string]$token, [string]$_error = "")
-    {
+    TokenRefreshResult([bool]$success, [string]$token, [string]$_error = "") {
         $this.Success = $success
         $this.Token = $token
         $this._error = $_error
     }
 }
 
-function Initialize-TokenRefreshModule
-{
+function Initialize-TokenRefreshModule {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
@@ -503,8 +447,7 @@ function Initialize-TokenRefreshModule
     }
 }
 
-function Refresh-MSGraphToken
-{
+function Refresh-MSGraphToken {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
@@ -512,8 +455,7 @@ function Refresh-MSGraphToken
         [string]$TokenType
     )
 
-    try
-    {
+    try {
         $config = $Global:TokenRefreshConfig
         $clientSecret = $config.ClientSecrets.MSGraph
 
@@ -524,8 +466,7 @@ function Refresh-MSGraphToken
             grant_type    = "client_credentials"
         }
 
-        if ($TokenType -eq "Client")
-        {
+        if ($TokenType -eq "Client") {
             # Add delegated auth specific parameters
             $body["grant_type"] = "refresh_token"
             $body["refresh_token"] = $Global:MSGRAPH_Api_Token_Client_Refresh
@@ -536,26 +477,22 @@ function Refresh-MSGraphToken
             -Body $body `
             -ContentType "application/x-www-form-urlencoded"
 
-        if ($TokenType -eq "App")
-        {
+        if ($TokenType -eq "App") {
             $Global:MSGRAPH_Api_Token_App = $response.access_token
         }
-        else
-        {
+        else {
             $Global:MSGRAPH_Api_Token_Client = $response.access_token
             $Global:MSGRAPH_Api_Token_Client_Refresh = $response.refresh_token
         }
 
         return [TokenRefreshResult]::new($true, $response.access_token)
     }
-    catch
-    {
+    catch {
         return [TokenRefreshResult]::new($false, "", $_.Exception.Message)
     }
 }
 
-function Refresh-EXOToken
-{
+function Refresh-EXOToken {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
@@ -563,8 +500,7 @@ function Refresh-EXOToken
         [string]$TokenType
     )
 
-    try
-    {
+    try {
         $config = $Global:TokenRefreshConfig
         $clientSecret = $config.ClientSecrets.EXO
 
@@ -575,8 +511,7 @@ function Refresh-EXOToken
             grant_type    = "client_credentials"
         }
 
-        if ($TokenType -eq "Client")
-        {
+        if ($TokenType -eq "Client") {
             $body["grant_type"] = "refresh_token"
             $body["refresh_token"] = $Global:EXO_Api_Token_Client_Refresh
         }
@@ -586,26 +521,22 @@ function Refresh-EXOToken
             -Body $body `
             -ContentType "application/x-www-form-urlencoded"
 
-        if ($TokenType -eq "App")
-        {
+        if ($TokenType -eq "App") {
             $Global:EXO_Api_Token_App = $response.access_token
         }
-        else
-        {
+        else {
             $Global:EXO_Api_Token_Client = $response.access_token
             $Global:EXO_Api_Token_Client_Refresh = $response.refresh_token
         }
 
         return [TokenRefreshResult]::new($true, $response.access_token)
     }
-    catch
-    {
+    catch {
         return [TokenRefreshResult]::new($false, "", $_.Exception.Message)
     }
 }
 
-function Refresh-AzureToken
-{
+function Refresh-AzureToken {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
@@ -613,8 +544,7 @@ function Refresh-AzureToken
         [string]$TokenType
     )
 
-    try
-    {
+    try {
         $config = $Global:TokenRefreshConfig
         $clientSecret = $config.ClientSecrets.Azure
 
@@ -625,8 +555,7 @@ function Refresh-AzureToken
             grant_type    = "client_credentials"
         }
 
-        if ($TokenType -eq "Client")
-        {
+        if ($TokenType -eq "Client") {
             $body["grant_type"] = "refresh_token"
             $body["refresh_token"] = $Global:AZURE_Api_Token_Client_Refresh
         }
@@ -636,26 +565,22 @@ function Refresh-AzureToken
             -Body $body `
             -ContentType "application/x-www-form-urlencoded"
 
-        if ($TokenType -eq "App")
-        {
+        if ($TokenType -eq "App") {
             $Global:AZURE_Api_Token_App = $response.access_token
         }
-        else
-        {
+        else {
             $Global:AZURE_Api_Token_Client = $response.access_token
             $Global:AZURE_Api_Token_Client_Refresh = $response.refresh_token
         }
 
         return [TokenRefreshResult]::new($true, $response.access_token)
     }
-    catch
-    {
+    catch {
         return [TokenRefreshResult]::new($false, "", $_.Exception.Message)
     }
 }
 
-function Refresh-RingCentralToken
-{
+function Refresh-RingCentralToken {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
@@ -666,17 +591,14 @@ function Refresh-RingCentralToken
         [switch]$Sandbox
     )
 
-    try
-    {
+    try {
         $config = $Global:TokenRefreshConfig
         $clientSecret = $config.ClientSecrets.RingCentral
 
-        $baseUrl = if ($Sandbox)
-        {
+        $baseUrl = if ($Sandbox) {
             $config.Endpoints.RingCentralSandbox
         }
-        else
-        {
+        else {
             $config.Endpoints.RingCentral
         }
 
@@ -689,12 +611,10 @@ function Refresh-RingCentralToken
 
         $body = @{
             grant_type    = "refresh_token"
-            refresh_token = if ($TokenType -eq "Api")
-            {
+            refresh_token = if ($TokenType -eq "Api") {
                 if ($Sandbox) { $Global:RC_Api_Sandbox_Token_Refresh } else { $Global:RC_Api_Token_Refresh }
             }
-            else
-            {
+            else {
                 if ($Sandbox) { $Global:RC_Bot_Sandbox_Token_Refresh } else { $Global:RC_Bot_Token_Refresh }
             }
         }
@@ -706,30 +626,23 @@ function Refresh-RingCentralToken
             -ContentType "application/x-www-form-urlencoded"
 
         # Update the appropriate token based on type and environment
-        switch ($TokenType)
-        {
-            "Api"
-            {
-                if ($Sandbox)
-                {
+        switch ($TokenType) {
+            "Api" {
+                if ($Sandbox) {
                     $Global:RC_Api_Sandbox_Token = $response.access_token
                     $Global:RC_Api_Sandbox_Token_Refresh = $response.refresh_token
                 }
-                else
-                {
+                else {
                     $Global:RC_Api_Token = $response.access_token
                     $Global:RC_Api_Token_Refresh = $response.refresh_token
                 }
             }
-            "Bot"
-            {
-                if ($Sandbox)
-                {
+            "Bot" {
+                if ($Sandbox) {
                     $Global:RC_Bot_Sandbox_Token = $response.access_token
                     $Global:RC_Bot_Sandbox_Token_Refresh = $response.refresh_token
                 }
-                else
-                {
+                else {
                     $Global:RC_Bot_Token = $response.access_token
                     $Global:RC_Bot_Token_Refresh = $response.refresh_token
                 }
@@ -738,15 +651,13 @@ function Refresh-RingCentralToken
 
         return [TokenRefreshResult]::new($true, $response.access_token)
     }
-    catch
-    {
+    catch {
         return [TokenRefreshResult]::new($false, "", $_.Exception.Message)
     }
 }
 
 # Register all refresh functions with the token manager
-function Register-AllTokenRefreshFunctions
-{
+function Register-AllTokenRefreshFunctions {
     [CmdletBinding()]
     param()
 

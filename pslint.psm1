@@ -1,5 +1,4 @@
-function pslint
-{
+function pslint {
     <#
     .SYNOPSIS
     Performance-focused PowerShell linter for analyzing scripts.
@@ -40,66 +39,39 @@ function pslint
         $ScriptBlock
     )
 
-    BEGIN
-    {
-        if ($PSCmdlet.ParameterSetName -eq 'Path')
-        {
-            if (-not (Test-Path $Path))
-            {
+    BEGIN {
+        if ($PSCmdlet.ParameterSetName -eq 'Path') {
+            if (-not (Test-Path $Path)) {
                 throw "File not found: $Path"
             }
             $parseErrors = $null
             $tokens = $null
             $ast = [System.Management.Automation.Language.Parser]::ParseFile($Path, [ref]$tokens, [ref]$parseErrors)
 
-            if ($parseErrors)
-            {
+            if ($parseErrors) {
                 throw "Parse errors encountered: $($parseErrors -join "`n")"
             }
         }
-        else
-        {
-            if ($null -eq $ScriptBlock)
-            {
+        else {
+            if ($null -eq $ScriptBlock) {
                 throw 'ScriptBlock cannot be null'
             }
             $ast = $ScriptBlock.Ast
         }
 
-        class CodeAnalysisResults
-        {
-            [System.Collections.Generic.List[object]]$OutputSuppression
-            [System.Collections.Generic.List[object]]$ArrayAddition
-            [System.Collections.Generic.List[object]]$StringAddition
-            [System.Collections.Generic.List[object]]$LargeFileProcessing
-            [System.Collections.Generic.List[object]]$LargeCollectionLookup
-            [System.Collections.Generic.List[object]]$WriteHostUsage
-            [System.Collections.Generic.List[object]]$LargeLoops
-            [System.Collections.Generic.List[object]]$RepeatedFunctionCalls
-            [System.Collections.Generic.List[object]]$CmdletPipelineWrapping
-            [System.Collections.Generic.List[object]]$DynamicObjectCreation
+        class CodeAnalysisResults {
+            [System.Collections.Generic.List[object]]$OutputSuppression = [System.Collections.Generic.List[object]]::new()
+            [System.Collections.Generic.List[object]]$ArrayAddition = [System.Collections.Generic.List[object]]::new()
+            [System.Collections.Generic.List[object]]$StringAddition = [System.Collections.Generic.List[object]]::new()
+            [System.Collections.Generic.List[object]]$LargeFileProcessing = [System.Collections.Generic.List[object]]::new()
+            [System.Collections.Generic.List[object]]$LargeCollectionLookup = [System.Collections.Generic.List[object]]::new()
+            [System.Collections.Generic.List[object]]$WriteHostUsage = [System.Collections.Generic.List[object]]::new()
+            [System.Collections.Generic.List[object]]$LargeLoops = [System.Collections.Generic.List[object]]::new()
+            [System.Collections.Generic.List[object]]$RepeatedFunctionCalls = [System.Collections.Generic.List[object]]::new()
+            [System.Collections.Generic.List[object]]$CmdletPipelineWrapping = [System.Collections.Generic.List[object]]::new()
+            [System.Collections.Generic.List[object]]$DynamicObjectCreation = [System.Collections.Generic.List[object]]::new()
 
-            CodeAnalysisResults()
-            {
-                $this.OutputSuppression = $this.InitializeList()
-                $this.ArrayAddition = $this.InitializeList()
-                $this.StringAddition = $this.InitializeList()
-                $this.LargeFileProcessing = $this.InitializeList()
-                $this.LargeCollectionLookup = $this.InitializeList()
-                $this.WriteHostUsage = $this.InitializeList()
-                $this.LargeLoops = $this.InitializeList()
-                $this.RepeatedFunctionCalls = $this.InitializeList()
-                $this.CmdletPipelineWrapping = $this.InitializeList()
-                $this.DynamicObjectCreation = $this.InitializeList()
-            }
-
-            [System.Collections.Generic.List[object]] InitializeList()
-            {
-                return [System.Collections.Generic.List[object]]::new()
-            }
-
-            [void] ClearLists()
-            {
+            [void] ClearLists() {
                 $this.OutputSuppression.Clear()
                 $this.ArrayAddition.Clear()
                 $this.StringAddition.Clear()
@@ -112,227 +84,193 @@ function pslint
                 $this.DynamicObjectCreation.Clear()
             }
         }
-    }
 
-    PROCESS
-    {
-        $results = [CodeAnalysisResults]::new()
+        class ScriptAnalyzerVisitor : System.Management.Automation.Language.AstVisitor2 {
+            [CodeAnalysisResults]$Results
 
-        function Test-NodeSafely
-        {
-            param(
-                [Parameter(Mandatory)]
-                [System.Management.Automation.Language.Ast]$Node,
-                [Parameter(Mandatory)]
-                [scriptblock]$Condition
-            )
-
-            try
-            {
-                return (& $Condition $Node)
+            ScriptAnalyzerVisitor() {
+                $this.Results = [CodeAnalysisResults]::new()
             }
-            catch
-            {
-                Write-Verbose "Error checking node: $_"
-                return $false
+
+            #region Visit Methods
+            [System.Management.Automation.Language.AstVisitAction] VisitAssignmentStatement([System.Management.Automation.Language.AssignmentStatementAst] $assignmentStatementAst) {
+                # Output Suppression: $null assignment
+                if ($null -ne $assignmentStatementAst.Right -and
+                    $assignmentStatementAst.Right -is [System.Management.Automation.Language.VariableExpressionAst] -and
+                    $assignmentStatementAst.Right.VariablePath.UserPath -eq 'null') {
+                    $this.Results.OutputSuppression.Add($assignmentStatementAst)
+                }
+
+                # Array Addition: $array = @()
+                if ($assignmentStatementAst.Operator -eq 'Equals' -and
+                    $null -ne $assignmentStatementAst.Right -and
+                    $assignmentStatementAst.Right -is [System.Management.Automation.Language.ArrayExpressionAst]) {
+                    # This is a weak check and can lead to false positives.
+                    # To reduce noise, we only flag the use of += on arrays.
+                }
+
+                # Array/String Addition: +=
+                if ($assignmentStatementAst.Operator -eq 'PlusEquals') {
+                    # Avoid flagging numeric operations
+                    if ($assignmentStatementAst.Right -isnot [System.Management.Automation.Language.ConstantExpressionAst] -or
+                        ($assignmentStatementAst.Right -is [System.Management.Automation.Language.ConstantExpressionAst] -and $assignmentStatementAst.Right.Value -isnot [int] -and $assignmentStatementAst.Right.Value -isnot [double] -and $assignmentStatementAst.Right.Value -isnot [decimal])) {
+                        $this.Results.ArrayAddition.Add($assignmentStatementAst)
+                        $this.Results.StringAddition.Add($assignmentStatementAst)
+                    }
+                }
+                return [System.Management.Automation.Language.AstVisitAction]::Continue
             }
+
+            [System.Management.Automation.Language.AstVisitAction] VisitCommand([System.Management.Automation.Language.CommandAst] $commandAst) {
+                # Output Suppression: > $null
+                if ($commandAst.Redirections.Count -gt 0 -and
+                    $null -ne $commandAst.Redirections[0] -and
+                    $commandAst.Redirections[0].ToString() -eq ">$null") {
+                    $this.Results.OutputSuppression.Add($commandAst)
+                }
+
+                if ($commandAst.CommandElements.Count -gt 0) {
+                    $commandName = $commandAst.CommandElements[0].ToString()
+                    switch -Wildcard ($commandName) {
+                        'Get-Content' { $this.Results.LargeFileProcessing.Add($commandAst) }
+                        'Write-Host' { $this.Results.WriteHostUsage.Add($commandAst) }
+                        'Add-Member' { $this.Results.DynamicObjectCreation.Add($commandAst) }
+                        'Get-WmiObject' { $this.Results.CmdletPipelineWrapping.Add($commandAst) }
+                    }
+                }
+                return [System.Management.Automation.Language.AstVisitAction]::Continue
+            }
+
+            [System.Management.Automation.Language.AstVisitAction] VisitCommandExpression([System.Management.Automation.Language.CommandExpressionAst] $commandExpressionAst) {
+                # Output Suppression: [void]
+                if ($null -ne $commandExpressionAst.Expression -and
+                    $commandExpressionAst.Expression -is [System.Management.Automation.Language.TypeExpressionAst] -and
+                    $commandExpressionAst.Expression.TypeName.Name -eq 'void') {
+                    $this.Results.OutputSuppression.Add($commandExpressionAst)
+                }
+                return [System.Management.Automation.Language.AstVisitAction]::Continue
+            }
+
+            [System.Management.Automation.Language.AstVisitAction] VisitPipeline([System.Management.Automation.Language.PipelineAst] $pipelineAst) {
+                # Output Suppression: | Out-Null
+                if ($pipelineAst.PipelineElements.Count -gt 0 -and
+                    $null -ne $pipelineAst.PipelineElements[-1].CommandElements -and
+                    $pipelineAst.PipelineElements[-1].CommandElements.Count -gt 0 -and
+                    $pipelineAst.PipelineElements[-1].CommandElements[-1].Value -eq 'Out-Null') {
+                    $this.Results.OutputSuppression.Add($pipelineAst)
+                }
+
+                # Cmdlet Pipeline Wrapping
+                if ($pipelineAst.PipelineElements.Count -gt 2) {
+                    $this.Results.CmdletPipelineWrapping.Add($pipelineAst)
+                }
+                return [System.Management.Automation.Language.AstVisitAction]::Continue
+            }
+
+            [System.Management.Automation.Language.AstVisitAction] VisitInvokeMemberExpression([System.Management.Automation.Language.InvokeMemberExpressionAst] $invokeMemberExpressionAst) {
+                if ($null -ne $invokeMemberExpressionAst.Member) {
+                    $memberName = $invokeMemberExpressionAst.Member.Value
+                    if ($memberName -eq 'Add') {
+                        $this.Results.ArrayAddition.Add($invokeMemberExpressionAst)
+                    }
+                    elseif ($memberName -eq 'ReadLines' -and $invokeMemberExpressionAst.Expression.TypeName.Name -eq 'File') {
+                        $this.Results.LargeFileProcessing.Add($invokeMemberExpressionAst)
+                    }
+                }
+                return [System.Management.Automation.Language.AstVisitAction]::Continue
+            }
+
+            [System.Management.Automation.Language.AstVisitAction] VisitBinaryExpression([System.Management.Automation.Language.BinaryExpressionAst] $binaryExpressionAst) {
+                # String Addition: -f or +
+                if ($binaryExpressionAst.Operator -eq 'Format' -or
+                    ($binaryExpressionAst.Operator -eq 'Plus' -and ($binaryExpressionAst.Left -is [System.Management.Automation.Language.StringConstantExpressionAst] -or $binaryExpressionAst.Right -is [System.Management.Automation.Language.StringConstantExpressionAst]))) {
+                    $this.Results.StringAddition.Add($binaryExpressionAst)
+                }
+                return [System.Management.Automation.Language.AstVisitAction]::Continue
+            }
+
+            [System.Management.Automation.Language.AstVisitAction] VisitExpandableStringExpression([System.Management.Automation.Language.ExpandableStringExpressionAst] $expandableStringExpressionAst) {
+                # String Addition: "$()"
+                if ($expandableStringExpressionAst.NestedExpressions.Count -gt 0) {
+                    $this.Results.StringAddition.Add($expandableStringExpressionAst)
+                }
+                return [System.Management.Automation.Language.AstVisitAction]::Continue
+            }
+
+            [System.Management.Automation.Language.AstVisitAction] VisitTypeExpression([System.Management.Automation.Language.TypeExpressionAst] $typeExpressionAst) {
+                # Large File Processing: [StreamReader]
+                if ($typeExpressionAst.TypeName.Name -eq 'StreamReader') {
+                    $this.Results.LargeFileProcessing.Add($typeExpressionAst)
+                }
+                return [System.Management.Automation.Language.AstVisitAction]::Continue
+            }
+
+            [System.Management.Automation.Language.AstVisitAction] VisitHashtable([System.Management.Automation.Language.HashtableAst] $hashtableAst) {
+                if ($hashtableAst.KeyValuePairs.Count -gt 10) {
+                    $this.Results.LargeCollectionLookup.Add($hashtableAst)
+                }
+                return [System.Management.Automation.Language.AstVisitAction]::Continue
+            }
+
+            [System.Management.Automation.Language.AstVisitAction] VisitForStatement([System.Management.Automation.Language.ForStatementAst] $forStatementAst) {
+                if ($forStatementAst.Body.Extent.EndLineNumber - $forStatementAst.Body.Extent.StartLineNumber > 15) {
+                    $this.Results.LargeLoops.Add($forStatementAst)
+                }
+                return [System.Management.Automation.Language.AstVisitAction]::Continue
+            }
+
+            [System.Management.Automation.Language.AstVisitAction] VisitWhileStatement([System.Management.Automation.Language.WhileStatementAst] $whileStatementAst) {
+                if ($whileStatementAst.Body.Extent.EndLineNumber - $whileStatementAst.Body.Extent.StartLineNumber > 15) {
+                    $this.Results.LargeLoops.Add($whileStatementAst)
+                }
+                return [System.Management.Automation.Language.AstVisitAction]::Continue
+            }
+
+            [System.Management.Automation.Language.AstVisitAction] VisitDoWhileStatement([System.Management.Automation.Language.DoWhileStatementAst] $doWhileStatementAst) {
+                if ($doWhileStatementAst.Body.Extent.EndLineNumber - $doWhileStatementAst.Body.Extent.StartLineNumber > 15) {
+                    $this.Results.LargeLoops.Add($doWhileStatementAst)
+                }
+                return [System.Management.Automation.Language.AstVisitAction]::Continue
+            }
+
+            [System.Management.Automation.Language.AstVisitAction] VisitForEachStatement([System.Management.Automation.Language.ForEachStatementAst] $forEachStatementAst) {
+                if ($forEachStatementAst.Body.Extent.EndLineNumber - $forEachStatementAst.Body.Extent.StartLineNumber > 15) {
+                    $this.Results.LargeLoops.Add($forEachStatementAst)
+                }
+                return [System.Management.Automation.Language.AstVisitAction]::Continue
+            }
+
+            [System.Management.Automation.Language.AstVisitAction] VisitFunctionDefinition([System.Management.Automation.Language.FunctionDefinitionAst] $functionDefinitionAst) {
+                if ($functionDefinitionAst.Body.Extent.Text -match 'for\s*\(') {
+                    $this.Results.RepeatedFunctionCalls.Add($functionDefinitionAst)
+                }
+                return [System.Management.Automation.Language.AstVisitAction]::Continue
+            }
+
+            [System.Management.Automation.Language.AstVisitAction] VisitConvertExpression([System.Management.Automation.Language.ConvertExpressionAst] $convertExpressionAst) {
+                if ($convertExpressionAst.Type.TypeName.Name -eq 'pscustomobject') {
+                    $this.Results.DynamicObjectCreation.Add($convertExpressionAst)
+                }
+                return [System.Management.Automation.Language.AstVisitAction]::Continue
+            }
+
+            [System.Management.Automation.Language.AstVisitAction] VisitMemberExpression([System.Management.Automation.Language.MemberExpressionAst] $memberExpressionAst) {
+                if ($memberExpressionAst.Member.Value -eq 'Properties' -and $memberExpressionAst.Expression.TypeName.Name -eq 'PSObject') {
+                    $this.Results.DynamicObjectCreation.Add($memberExpressionAst)
+                }
+                return [System.Management.Automation.Language.AstVisitAction]::Continue
+            }
+            #endregion
         }
-
-        # Check for Output Suppression
-        $ast.FindAll({
-                param($node)
-                Test-NodeSafely -Node $node -Condition {
-                    param($n)
-                ($n -is [System.Management.Automation.Language.AssignmentStatementAst] -and
-                    $null -ne $n.Right -and
-                    $n.Right -is [System.Management.Automation.Language.VariableExpressionAst] -and
-                    $n.Right.VariablePath.UserPath -eq 'null') -or
-                ($n -is [System.Management.Automation.Language.CommandAst] -and
-                    $n.Redirections.Count -gt 0 -and
-                    $null -ne $n.Redirections[0] -and
-                    $n.Redirections[0].ToString() -eq ">$null") -or
-                ($n -is [System.Management.Automation.Language.CommandExpressionAst] -and
-                    $null -ne $n.Expression -and
-                    $n.Expression -is [System.Management.Automation.Language.TypeExpressionAst] -and
-                    $n.Expression.TypeName.Name -eq 'void') -or
-                ($n -is [System.Management.Automation.Language.PipelineAst] -and
-                    $n.PipelineElements.Count -gt 0 -and
-                    $null -ne $n.PipelineElements[-1].CommandElements -and
-                    $n.PipelineElements[-1].CommandElements.Count -gt 0 -and
-                    $n.PipelineElements[-1].CommandElements[-1].Value -eq 'Out-Null')
-                }
-            }, $true) | Where-Object { $null -ne $_ } | ForEach-Object { $results.OutputSuppression.Add($_) }
-
-        # Check for ArrayAddition
-        $ast.FindAll({
-                param($node)
-                Test-NodeSafely -Node $node -Condition {
-                    param($n)
-                ($n -is [System.Management.Automation.Language.AssignmentStatementAst] -and
-                    $n.Operator -eq 'Equals' -and
-                    $null -ne $n.Right -and
-                    $n.Right -is [System.Management.Automation.Language.ArrayExpressionAst]) -or
-                ($n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and
-                    $null -ne $n.Member -and
-                    $n.Member.Value -eq 'Add') -or
-                ($n -is [System.Management.Automation.Language.AssignmentStatementAst] -and
-                    $n.Operator -eq 'PlusEquals')
-                }
-            }, $true) | Where-Object { $null -ne $_ } | ForEach-Object { $results.ArrayAddition.Add($_) }
-
-        # Check for StringAddition
-        <# Find StringBuilder usage
-        $ast.FindAll({
-                param($node)
-                Test-NodeSafely -Node $node -Condition {
-                    param($n)
-                $node -is [System.Management.Automation.Language.TypeExpressionAst] -and
-                $node.TypeName.FullName -eq 'System.Text.StringBuilder'
-                }, $true } ) | Where-Object { $null -ne $_ } | ForEach-Object { $results.StringAddition.Add($_) }
-
-        # Find Join operator usage
-        $ast.FindAll({
-                param($node)
-                Test-NodeSafely -Node $node -Condition {
-                    param($n)
-                $node -is [System.Management.Automation.Language.BinaryExpressionAst] -and
-                $node.Operator -eq 'Join'
-                }, $true } ) | Where-Object { $null -ne $_ } | ForEach-Object { $results.StringAddition.Add($_) }
-
-        #>
-        # Find += operator usage with strings
-        $ast.FindAll({
-                param($node)
-                Test-NodeSafely -Node $node -Condition {
-                    param($n)
-                    $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
-                    $node.Operator -eq 'PlusEquals'
-                }, $true } ) | Where-Object { $null -ne $_ } | ForEach-Object { $results.StringAddition.Add($_) }
-
-        # Find string format usage (-f operator)
-        $ast.FindAll({
-                param($node)
-                Test-NodeSafely -Node $node -Condition {
-                    param($n)
-                    $node -is [System.Management.Automation.Language.BinaryExpressionAst] -and
-                    $node.Operator -eq 'Format'
-                }, $true } ) | Where-Object { $null -ne $_ } | ForEach-Object { $results.StringAddition.Add($_) }
-
-        # Find string concatenation using + operator
-        $ast.FindAll({
-                param($node)
-                Test-NodeSafely -Node $node -Condition {
-                    param($n)
-                    $node -is [System.Management.Automation.Language.BinaryExpressionAst] -and
-                    $node.Operator -eq 'Plus' -and
-            ($node.Left -is [System.Management.Automation.Language.StringConstantExpressionAst] -or
-                    $node.Right -is [System.Management.Automation.Language.StringConstantExpressionAst])
-                }, $true } ) | Where-Object { $null -ne $_ } | ForEach-Object { $results.StringAddition.Add($_) }
-
-        # Find subexpression usage in strings
-        $ast.FindAll({
-                param($node)
-                Test-NodeSafely -Node $node -Condition {
-                    param($n)
-                    $node -is [System.Management.Automation.Language.ExpandableStringExpressionAst] -and
-                    $node.NestedExpressions.Count -gt 0
-                }, $true } ) | Where-Object { $null -ne $_ } | ForEach-Object { $results.StringAddition.Add($_) }
-
-        # Check for Large File Processing
-        $ast.FindAll({
-                param($node)
-                Test-NodeSafely -Node $node -Condition {
-                    param($n)
-                ($n -is [System.Management.Automation.Language.CommandAst] -and
-                    $n.CommandElements[0].Value -eq 'Get-Content') -or
-                ($n -is [System.Management.Automation.Language.TypeExpressionAst] -and
-                    $n.TypeName.Name -eq 'StreamReader') -or
-                ($n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and
-                    $n.Expression.TypeName.Name -eq 'File' -and
-                    $n.Member.Value -eq 'ReadLines')
-                }
-            }, $true) | ForEach-Object { $results.LargeFileProcessing.Add($_) }
-
-        # Check for LargeCollectionLookup
-        $ast.FindAll({
-                param($node)
-                Test-NodeSafely -Node $node -Condition {
-                    param($n)
-                    $n -is [System.Management.Automation.Language.HashtableAst]
-                }
-            }, $true) | ForEach-Object { $results.LargeCollectionLookup.Add($_) }
-
-        # Check for WriteHostUsage
-        $ast.FindAll({
-                param($node)
-                Test-NodeSafely -Node $node -Condition {
-                    param($n)
-                    $n -is [System.Management.Automation.Language.CommandAst] -and
-                    $n.CommandElements[0].Value -eq 'Write-Host'
-                }
-            }, $true) | ForEach-Object { $results.WriteHostUsage.Add($_) }
-
-        <# Check for WriteHostUsage
-        $ast.FindAll({
-                param($node)
-                Test-NodeSafely -Node $node -Condition {
-                    param($n)
-                    $n -is [System.Management.Automation.Language.CommandAst] -and
-                    $n.CommandElements[0].Value -eq '[console]::writeline'
-                }
-            }, $true) | ForEach-Object { $results.WriteHostUsage.Add($_) }#>
-
-        # CHeck for LargeLoops
-        $ast.FindAll({
-                param($node)
-                Test-NodeSafely -Node $node -Condition {
-                    param($n)
-                ($n -is [System.Management.Automation.Language.ForStatementAst] -or
-                    $n -is [System.Management.Automation.Language.WhileStatementAst] -or
-                    $n -is [System.Management.Automation.Language.DoWhileStatementAst] -or
-                    $n -is [System.Management.Automation.Language.ForEachStatementAst]) -and
-                    $node.Body.Extent.EndLineNumber - $node.Body.Extent.StartLineNumber > 15
-                }
-            }, $true) | ForEach-Object { $results.LargeLoops.Add($_) }
-
-        # Check for RepeatedFunctionCalls
-        $ast.FindAll({
-                param($node)
-                Test-NodeSafely -Node $node -Condition {
-                    param($n)
-                    $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
-                    $n.Body.Extent.Text -match 'for\s*\('
-                }
-            }, $true) | ForEach-Object { $results.RepeatedFunctionCalls.Add($_) }
-
-        # Check for CmdletPipelineWrapping
-        $ast.FindAll({
-                param($node)
-                Test-NodeSafely -Node $node -Condition {
-                    param($n)
-                    $n -is [System.Management.Automation.Language.PipelineAst] -and
-                    $n.PipelineElements.Count -gt 2
-                }
-            }, $true) | ForEach-Object { $results.CmdletPipelineWrapping.Add($_) }
-
-        # Check for DynamicObjectCreation
-        $ast.FindAll({
-                param($node)
-                Test-NodeSafely -Node $node -Condition {
-                    param($n)
-                ($n -is [System.Management.Automation.Language.ConvertExpressionAst] -and
-                    $n.Type.TypeName.Name -eq 'pscustomobject') -or
-                ($n -is [System.Management.Automation.Language.CommandAst] -and
-                    $n.CommandElements[0].Value -eq 'Add-Member') -or
-                ($n -is [System.Management.Automation.Language.MemberExpressionAst] -and
-                    $n.Member.Value -eq 'Properties' -and
-                    $n.Expression.TypeName.Name -eq 'PSObject')
-                }
-            }, $true) | ForEach-Object { $results.DynamicObjectCreation.Add($_) }
     }
 
-    END
-    {
+    PROCESS {
+        $visitor = [ScriptAnalyzerVisitor]::new()
+        $ast.Visit($visitor)
+        $results = $visitor.Results
+    }
+
+    END {
         $report = [ordered]@{
             Summary    = @{
                 TotalIssues = 0
@@ -353,59 +291,58 @@ function pslint
             $report.Summary.TotalIssues += $issues.Count
 
             $report.Details[$categoryName] = @(
-                foreach ($issue in $issues)
-                {
+                foreach ($issue in $issues) {
+                    $suggestion = switch ($categoryName) {
+                        'OutputSuppression' { 'Consider using [void] for performance and clarity instead of piping to Out-Null or assigning to $null.' }
+                        'ArrayAddition' { 'Using `+=` on an array creates a new array and copies all elements on each call. For better performance, use `[System.Collections.ArrayList]` or `[System.Collections.Generic.List[object]]` and their `.Add()` method.' }
+                        'StringAddition' { 'Repeated string concatenation can be inefficient. For complex strings, consider using the `-f` format operator, `-join`, or `System.Text.StringBuilder`.' }
+                        'LargeFileProcessing' { 'For large files, `Get-Content` can consume a lot of memory. Consider using `System.IO.StreamReader` for more efficient line-by-line processing.' }
+                        'LargeCollectionLookup' { 'For large collections, PowerShell hashtables can be slower than generic dictionaries. Consider using `System.Collections.Generic.Dictionary[TKey, TValue]` for better performance.' }
+                        'WriteHostUsage' { '`Write-Host` writes directly to the console, which can limit script portability and prevent capturing output. For general output, prefer `Write-Output`. For logging or debugging, consider `Write-Verbose`, `Write-Debug`, or a dedicated logging framework.' }
+                        'LargeLoops' { 'Very large loops can be slow. Consider optimizing the logic inside the loop or exploring faster, array-based operations with .NET methods where possible.' }
+                        'RepeatedFunctionCalls' { 'Calling the same function repeatedly with the same parameters can be inefficient. Consider caching the results in a variable.' }
+                        'CmdletPipelineWrapping' {
+                            if ($issue.Extent.Text -match 'Get-WmiObject') {
+                                '`Get-WmiObject` is obsolete. Use `Get-CimInstance` instead. Also, try to use a `-Filter` parameter instead of piping to `Where-Object` to improve performance by filtering at the source.'
+                            }
+                            else {
+                                'Piping to `Where-Object` can be inefficient for large datasets. Where possible, use a cmdlet-specific `-Filter` parameter to filter results at the source. Long pipelines can also be harder to read and debug.'
+                            }
+                        }
+                        'DynamicObjectCreation' { 'Creating custom objects with `[PSCustomObject]` or `Add-Member` inside loops can be slow. For performance-critical scenarios, consider defining a class.' }
+                        default { 'Review for potential optimization.' }
+                    }
                     @{
                         Line       = $issue.Extent.StartLineNumber
                         Text       = $issue.Extent.Text.Trim()
-                        Suggestion = switch ($categoryName)
-                        {
-                            'OutputSuppression' { 'Consider using [void] for better performance' }
-                            'ArrayAddition' { 'Consider using ArrayList or Generic List for better performance' }
-                            'StringAddition' { 'Consider using -Join or String Buider for better performance' }
-                            'LargeFileProcessing' { 'Consider using System.IO.StreamReader for large files' }
-                            'LargeCollectionLookup' { 'Consider using Dictionary<TKey,TValue> for large collections' }
-                            'WriteHostUsage' { "Consider using Write-Information, Write-Output or if you are a real CHAD - [console]::writeline(`$message)" }
-                            'LargeLoops' { 'Consider breaking down large loops or using .NET methods' }
-                            'RepeatedFunctionCalls' { 'Consider caching function results' }
-                            'CmdletPipelineWrapping' { 'Consider reducing pipeline complexity' }
-                            'DynamicObjectCreation' { 'Consider using classes or structured objects' }
-                            default { 'Review for potential optimization' }
-                        }
+                        Suggestion = $suggestion
                     }
                 }
             )
         }
 
         $isCI = [bool]$env:CI
-        if ($isCI)
-        {
-            foreach ($category in $report.Details.Keys)
-            {
-                foreach ($issue in $report.Details[$category])
-                {
+        if ($isCI) {
+            foreach ($category in $report.Details.Keys) {
+                foreach ($issue in $report.Details[$category]) {
                     Write-Output "::warning file=$($report.ScriptPath),line=$($issue.Line)::[$category] $($issue.Suggestion)"
                 }
             }
 
             $report.Summary | ConvertTo-Json -Depth 10
         }
-        else
-        {
+        else {
             Write-Output "`n=== PowerShell Performance Analysis Report ==="
             Write-Output "Script: $($report.ScriptPath)"
             Write-Output "Time: $($report.Timestamp)"
             Write-Output "`nSummary:"
             Write-Output "Total Issues Found: $($report.Summary.TotalIssues)"
 
-            foreach ($category in $report.Details.Keys)
-            {
+            foreach ($category in $report.Details.Keys) {
                 $issueCount = $report.Summary.Categories[$category]
-                if ($issueCount -gt 0)
-                {
+                if ($issueCount -gt 0) {
                     Write-Output "`n== $category ($issueCount issues) =="
-                    foreach ($issue in $report.Details[$category])
-                    {
+                    foreach ($issue in $report.Details[$category]) {
                         Write-Output "  Line $($issue.Line):"
                         Write-Output "    Code: $($issue.Text)"
                         Write-Output "    Suggestion: $($issue.Suggestion)"

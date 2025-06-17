@@ -5,11 +5,11 @@
 
     CompanyName          = 'Calvindd2f'
 
-    ModuleVersion        = '1.0.0'
+    ModuleVersion        = '2.0.0'
 
     GUID                 = 'bc931fbd-b205-45be-9ecf-4f9db144998b'
 
-    Copyright            = '2024 Calvindd2f'
+    Copyright            = '2025 Calvindd2f'
 
     Description          = 'Performance focused linter for PowerShell scripts and Modules'
 
@@ -27,7 +27,7 @@
 
     PrivateData          = @{
         PSData = @{
-            Tags         = @('Performance', 'lint', 'Memory Optimized','Non-Idiomatic','Elitism','Workflow Safe')
+            Tags         = @('Performance', 'lint', 'Memory Optimized', 'Non-Idiomatic', 'Elitism', 'Workflow Safe')
 
             LicenseUri   = 'https://opensource.org/license/mit'
 

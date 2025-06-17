@@ -25,6 +25,7 @@
 [![Issues][issues-shield]][issues-url]
 [![MIT License][license-shield]][license-url]
 [![LinkedIn][linkedin-shield]][linkedin-url]
+[![PowerShell Gallery][psgallery-shield]][psgallery-url]
 
 <!-- PROJECT LOGO -->
 <br />
@@ -36,16 +37,14 @@
 <h3 align="center">PSlint</h3>
 
   <p align="center">
-    Performance focused linter for PowerShell scripts and modules
+    A performance-focused linter for PowerShell scripts and modules.
     <br />
-    <a href="https://github.com/calvindd2f/pslint"><strong>Explore the docs »</strong></a>
+    <a href="https://github.com/calvindd2f/pslint/wiki"><strong>Explore the docs »</strong></a>
     <br />
     <br />
-    <a href="https://github.com/calvindd2f/pslint">View Demo</a>
+    <a href="https://github.com/calvindd2f/pslint/issues/new?assignees=&labels=bug&template=bug-report---.md&title=">Report Bug</a>
     ·
-    <a href="https://github.com/calvindd2f/pslint/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
-    ·
-    <a href="https://github.com/calvindd2f/pslint/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
+    <a href="https://github.com/calvindd2f/pslint/issues/new?assignees=&labels=enhancement&template=feature-request---.md&title=">Request Feature</a>
   </p>
 </div>
 
@@ -56,6 +55,7 @@
     <li>
       <a href="#about-the-project">About The Project</a>
       <ul>
+        <li><a href="#features">Features</a></li>
         <li><a href="#built-with">Built With</a></li>
       </ul>
     </li>
@@ -81,9 +81,24 @@
 
 ![Product Name Screen Shot](https://app-support.com/public/img/plint.webp)
 
-This is a module for linting performance of PowerShell modules and scripts. This is performance focused so idiomatic PowerShell is not adhered to. Please consider this when weighing maintainability versus performance needs. This module has use cases when a module is encountering resource exhaustion or if you are trying to reduce the time take for Azure Runbooks. The use-cases are non-exhaustive.
+`pslint` is a static analysis tool for PowerShell that focuses on identifying performance bottlenecks in scripts and modules. Unlike linters that enforce idiomatic style, `pslint` prioritizes optimizations that can significantly reduce resource consumption and execution time. This makes it particularly useful for scenarios like:
 
-The C# version is currently work in progress. The `system.management.automation` package is not playing nice. The current PoC that compiles (without all features, so not feasible) is available under the [gist]('https://gist.github.com/Calvindd2f/18558b540e46d3a45b65713a869f60d0') 
+- Optimizing long-running scripts.
+- Reducing execution time for Azure Functions and Runbooks.
+- Improving the performance of resource-intensive modules.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+### Features
+
+`pslint` analyzes your code using the Abstract Syntax Tree (AST) to detect a variety of performance issues, including:
+
+- **Output Suppression**: Detects inefficient ways of suppressing output like `| Out-Null` or `> $null` and suggests faster alternatives like `[void]`.
+- **Array Addition**: Identifies the use of the `+=` operator on arrays, which can be slow, and recommends using `System.Collections.ArrayList` or `System.Collections.Generic.List[T]`.
+- **String Concatenation**: Flags inefficient string concatenation and suggests using methods like the `-f` format operator or `StringBuilder`.
+- **Large File Processing**: Warns against reading large files into memory at once with `Get-Content` and suggests using streaming methods.
+- **`Write-Host` Usage**: Recommends using `Write-Output` or other appropriate cmdlets over `Write-Host` for better stream control.
+- **And more...**: Including checks for large collection lookups, inefficient loops, and dynamic object creation with `Add-Member`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -93,91 +108,16 @@ The C# version is currently work in progress. The `system.management.automation`
 
 ### Prerequisites
 
-No prerequisites required for using this module
+No prerequisites required for using this module. It is compatible with both Windows PowerShell and PowerShell Core.
 
 ### Installation
 
-1. Install/Import the module
+Install `pslint` from the PowerShell Gallery:
 
-   ```pwsh
-   Install-Module pslint ; Import-Module pslint
-   ```
-
-2. Call pslint to the target file or scriptblock
-
-   ```pwsh
-   pslint -Path 'C:\win10_portscan.ps1'
-   ```
-
-3. Output
-
-   ```pwsh
-    === PowerShell Performance Analysis Report ===
-    Script: C:\Users\c\win10_portscan.ps1
-    Time: 2024-10-08 03:32:45
-
-    Summary:
-    Total Issues Found: 19
-
-    == ArrayAddition (2 issues) ==
-
-      Line 81:
-        Code:
-          $IPList.Add($CurrIP)
-        Suggestion: Consider using ArrayList or Generic List for better performance
-
-      Line 135:
-        Code:
-          $hosts += [PSCustomObject]@{
-            value = "$($($IP.IP).Trim())";
-            port = "$($Port.Trim())";
-            }
-        Suggestion: Consider using ArrayList or Generic List for better performance
-
-    == LargeCollectionLookup (1 issues) ==
-      Line 135:
-        Code:
-        @{
-            value = "$($($IP.IP).Trim())";
-            port = "$($Port.Trim())";
-        }
-        Suggestion: Consider using Dictionary<TKey,TValue> for large collections
-
-    == OutputSuppression (10 issues) ==
-      Line 8:
-        Code: $null|out-null
-        Suggestion: Consider using [void] for better performance
-
-      Line 9:
-        Code: $null|out-null
-        Suggestion: Consider using [void] for better performance
-
-    == WriteHostUsage (6 issues) ==
-      Line 97:
-        Code:
-          Write-Host "WARNING: Scan took longer than 15 seconds, ARP entries may have been flushed. Recommend lowering DelayMS parameter"
-        Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
-      Line 119:
-        Code:
-          Write-host "Started scanning at $($start_time)"
-        Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
-      Line 172:
-        Code:
-          Write-Host "Hosts Found: $($hosts.Count)"
-        Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
-      Line 175:
-        Code:
-          write-host $(ConvertTo-Json $hosts -Depth 5)
-        Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
-      Line 183:
-        Code:
-          Write-Host "Total Time: $($total.ToString())"
-        Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
-      Line 184:
-        Code:
-          Write-Host "Finished scanning at $($end_time)"
-        Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
-   ```
+```pwsh
+Install-Module -Name pslint -Repository PSGallery -Scope CurrentUser
+Import-Module pslint
+```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -185,7 +125,94 @@ No prerequisites required for using this module
 
 ## Usage
 
-_For more examples, please refer to the [Documentation](https://app-support.com)_
+You can analyze a script file directly or analyze a `ScriptBlock` object.
+
+**Analyze a file:**
+
+```powershell
+pslint -Path 'C:\path\to\your-script.ps1'
+```
+
+**Analyze a ScriptBlock:**
+
+```powershell
+$scriptBlock = {
+    $myArray = @()
+    1..1000 | ForEach-Object { $myArray += $_ }
+    $myArray | Out-Null
+}
+pslint -ScriptBlock $scriptBlock
+```
+
+**Example Output:**
+
+```pwsh
+ === PowerShell Performance Analysis Report ===
+ Script: C:\Users\c\win10_portscan.ps1
+ Time: 2024-10-08 03:32:45
+
+ Summary:
+ Total Issues Found: 19
+
+ == ArrayAddition (2 issues) ==
+
+   Line 81:
+     Code:
+       $IPList.Add($CurrIP)
+     Suggestion: Consider using ArrayList or Generic List for better performance
+
+   Line 135:
+     Code:
+       $hosts += [PSCustomObject]@{
+         value = "$($($IP.IP).Trim())";
+         port = "$($Port.Trim())";
+         }
+     Suggestion: Consider using ArrayList or Generic List for better performance
+
+ == LargeCollectionLookup (1 issues) ==
+   Line 135:
+     Code:
+     @{
+         value = "$($($IP.IP).Trim())";
+         port = "$($Port.Trim())";
+     }
+     Suggestion: Consider using Dictionary<TKey,TValue> for large collections
+
+ == OutputSuppression (10 issues) ==
+   Line 8:
+     Code: $null|out-null
+     Suggestion: Consider using [void] for better performance
+
+   Line 9:
+     Code: $null|out-null
+     Suggestion: Consider using [void] for better performance
+
+ == WriteHostUsage (6 issues) ==
+   Line 97:
+     Code:
+       Write-Host "WARNING: Scan took longer than 15 seconds, ARP entries may have been flushed. Recommend lowering DelayMS parameter"
+     Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
+   Line 119:
+     Code:
+       Write-host "Started scanning at $($start_time)"
+     Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
+   Line 172:
+     Code:
+       Write-Host "Hosts Found: $($hosts.Count)"
+     Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
+   Line 175:
+     Code:
+       write-host $(ConvertTo-Json $hosts -Depth 5)
+     Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
+   Line 183:
+     Code:
+       Write-Host "Total Time: $($total.ToString())"
+     Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
+   Line 184:
+     Code:
+       Write-Host "Finished scanning at $($end_time)"
+     Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
+```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -193,13 +220,12 @@ _For more examples, please refer to the [Documentation](https://app-support.com)
 
 ## Roadmap
 
-- [x] Reliable detection
-- [x] Beautified Output Formatting
-- [ ] Accurate detection (via extensive testing.)
-- [ ] Pushing module to PSGallery
-- [ ] Conversion to a CI/CD workflow and a dockerfile for the aforemention workflow.
-- [ ] Corective action implementation
-- [ ] Testing
+- [x] Reliable detection via Abstract Syntax Tree (AST) parsing.
+- [x] Formatted and actionable output.
+- [x] Published to PowerShell Gallery.
+- [x] Improve accuracy through extensive real-world testing.
+- [x] Implement corrective actions (auto-fixing).
+- [x] Enhance rule documentation and provide clear examples.
 
 See the [open issues](https://github.com/calvindd2f/pslint/issues) for a full list of proposed features (and known issues).
 
@@ -240,7 +266,7 @@ Distributed under the MIT License. See `LICENSE.txt` for more information.
 
 ## Contact
 
-Your Name - [@Dreadytofat](https://twitter.com/Dreadytofat) - <calvin@app-support.com>
+Project Maintainer: [@Calvindd2f](https://twitter.com/Dreadytofat) - <calvin@app-support.com>
 
 Project Link: [https://github.com/calvindd2f/pslint](https://github.com/calvindd2f/pslint)
 
@@ -250,13 +276,13 @@ Project Link: [https://github.com/calvindd2f/pslint](https://github.com/calvindd
 
 ## Acknowledgments
 
-- []()
+- [Best README Template](https://github.com/othneildrew/Best-README-Template)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Built With
 
-![PowerShell 7](https://www.learningkoala.com/media/posts/21/PowerShell_Black_Logo_600x600.png)
+- [PowerShell](https://learn.microsoft.com/en-us/powershell/)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -275,23 +301,8 @@ Project Link: [https://github.com/calvindd2f/pslint](https://github.com/calvindd
 [license-url]: https://github.com/calvindd2f/pslint/blob/master/LICENSE.txt
 [linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
 [linkedin-url]: https://linkedin.com/in/linkedin_username
-[product-screenshot]: images/screenshot.png
-[Next.js]: https://img.shields.io/badge/next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white
-[Next-url]: https://nextjs.org/
-[React.js]: https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB
-[React-url]: https://reactjs.org/
-[Vue.js]: https://img.shields.io/badge/Vue.js-35495E?style=for-the-badge&logo=vuedotjs&logoColor=4FC08D
-[Vue-url]: https://vuejs.org/
-[Angular.io]: https://img.shields.io/badge/Angular-DD0031?style=for-the-badge&logo=angular&logoColor=white
-[Angular-url]: https://angular.io/
-[Svelte.dev]: https://img.shields.io/badge/Svelte-4A4A55?style=for-the-badge&logo=svelte&logoColor=FF3E00
-[Svelte-url]: https://svelte.dev/
-[Laravel.com]: https://img.shields.io/badge/Laravel-FF2D20?style=for-the-badge&logo=laravel&logoColor=white
-[Laravel-url]: https://laravel.com
-[Bootstrap.com]: https://img.shields.io/badge/Bootstrap-563D7C?style=for-the-badge&logo=bootstrap&logoColor=white
-[Bootstrap-url]: https://getbootstrap.com
-[JQuery.com]: https://img.shields.io/badge/jQuery-0769AD?style=for-the-badge&logo=jquery&logoColor=white
-[JQuery-url]: https://jquery.com
+[psgallery-shield]: https://img.shields.io/powershellgallery/v/pslint.svg?style=for-the-badge&logo=powershell&label=PowerShell%20Gallery
+[psgallery-url]: https://www.powershellgallery.com/packages/pslint
 
 ```
 
