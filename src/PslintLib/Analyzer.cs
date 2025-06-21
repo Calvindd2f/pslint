@@ -38,4 +38,16 @@ public static class Analyzer
         ast.Visit(visitor);
         return visitor.Results;
     }
+
+    public static CodeAnalysisResults AnalyzeScriptBlock(ScriptBlock scriptBlock)
+    {
+        if (scriptBlock == null)
+        {
+            throw new ArgumentNullException(nameof(scriptBlock));
+        }
+
+        var visitor = new ScriptAnalyzerVisitor();
+        scriptBlock.Ast.Visit(visitor);
+        return visitor.Results;
+    }
 }
