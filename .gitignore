@@ -1,3 +1,9 @@
+dist*
+Internal*
+tests.md
+src/**/bin/
+src/**/obj/
+
 # Build artifacts
 dist/
 bin/
@@ -11,4 +17,4 @@ obj/
 *.log
 
 # Temporary files
-*.tmp
+
