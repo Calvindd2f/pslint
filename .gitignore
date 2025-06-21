@@ -3,3 +3,18 @@ Internal*
 tests.md
 src/**/bin/
 src/**/obj/
+
+# Build artifacts
+dist/
+bin/
+obj/
+*.nupkg
+
+# IDE and editor folders
+.vscode/
+
+# Logs
+*.log
+
+# Temporary files
+

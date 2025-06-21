@@ -22,17 +22,17 @@ jobs:
         with:
           modules-to-cache: PSScriptAnalyzer, Pester, pslint, psake
 
-      - name: Run pslint
+      - name: Run Pester tests
         shell: pwsh
-        id: '_015b8608ba8c4057b2d443b0cf38ac62'
         run: |
-          Import-Module ./pslint.psm1;
-          try{
-            pslint -Path ./Test-PowerShellScript1.ps1;
-            pslint -Path ./test-script-eggregious.ps1;
-            [console]::WriteLine('Both sample scripts passed without shitting the bed')
-          }catch{write-error}
-          [console]::Writeline('pslint functionality test / breaking change check complete')
+          Import-Module Pester -Force
+          Invoke-Pester -Path ./Tests -CI
+
+      - name: Run pslint self-check
+        shell: pwsh
+        run: |
+          Import-Module ./pslint.psm1
+          pslint -ScriptBlock { Write-Host "CI test" }
 
       - name: Publish PowerShell Module to PowerShellGallery
         id: _38ad555c65014b818d792b3b7abd1b2b
