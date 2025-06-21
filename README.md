@@ -67,6 +67,8 @@
       </ul>
     </li>
     <li><a href="#usage">Usage</a></li>
+    <li><a href="#custom-rules">Custom Rules</a></li>
+    <li><a href="#rule-reference">Rule Reference</a></li>
     <li><a href="#roadmap">Roadmap</a></li>
     <li><a href="#contributing">Contributing</a></li>
     <li><a href="#license">License</a></li>
@@ -87,7 +89,7 @@
 - Reducing execution time for Azure Functions and Runbooks.
 - Improving the performance of resource-intensive modules.
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 
 ### Features
 
@@ -102,6 +104,7 @@
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
+## Custom Rules
 <!-- GETTING STARTED -->
 
 ## Getting Started
@@ -119,7 +122,6 @@ Install-Module -Name pslint -Repository PSGallery -Scope CurrentUser
 Import-Module pslint
 ```
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- USAGE EXAMPLES -->
 
@@ -215,6 +217,24 @@ pslint -ScriptBlock $scriptBlock
 ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Custom Rules
+
+`pslint` can also evaluate rules provided in your own modules. Export your rule functions and specify their paths in a ScriptAnalyzer settings file:
+
+```powershell
+$settings = @{
+    CustomRulePath = '.\\MyRules'
+    IncludeRules   = 'Measure-*'
+}
+Invoke-ScriptAnalyzer -Path .\script.ps1 -Settings $settings
+```
+
+In Visual Studio Code set "powershell.scriptAnalysis.settingsPath" to the settings file so custom rules run automatically.
+
+## Rule Reference
+
+For details on the built-in rules and examples of recommended fixes see [docs/rules_overview.md](docs/rules_overview.md).
 
 <!-- ROADMAP -->
 
