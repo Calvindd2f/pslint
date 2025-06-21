@@ -1,3 +1,5 @@
 dist*
 Internal*
 tests.md
+src/**/bin/
+src/**/obj/
