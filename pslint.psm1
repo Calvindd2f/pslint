@@ -36,7 +36,10 @@ function pslint {
 
         [Parameter(ParameterSetName = 'ScriptBlock')]
         [scriptblock]
-        $ScriptBlock
+        $ScriptBlock,
+
+        [switch]
+        $SummaryOnly
     )
 
     BEGIN {
@@ -342,10 +345,12 @@ function pslint {
                 $issueCount = $report.Summary.Categories[$category]
                 if ($issueCount -gt 0) {
                     Write-Output "`n== $category ($issueCount issues) =="
-                    foreach ($issue in $report.Details[$category]) {
-                        Write-Output "  Line $($issue.Line):"
-                        Write-Output "    Code: $($issue.Text)"
-                        Write-Output "    Suggestion: $($issue.Suggestion)"
+                    if (-not $SummaryOnly) {
+                        foreach ($issue in $report.Details[$category]) {
+                            Write-Output "  Line $($issue.Line):"
+                            Write-Output "    Code: $($issue.Text)"
+                            Write-Output "    Suggestion: $($issue.Suggestion)"
+                        }
                     }
                 }
             }

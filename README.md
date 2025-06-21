@@ -142,6 +142,9 @@ $scriptBlock = {
     $myArray | Out-Null
 }
 pslint -ScriptBlock $scriptBlock
+
+# Display only the summary information
+pslint -Path 'C:\path\to\your-script.ps1' -SummaryOnly
 ```
 
 **Example Output:**
