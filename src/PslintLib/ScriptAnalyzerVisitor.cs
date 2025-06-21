@@ -9,21 +9,49 @@ public class ScriptAnalyzerVisitor : AstVisitor2
 
     public override AstVisitAction VisitAssignmentStatement(AssignmentStatementAst assignmentStatementAst)
     {
+
         if (assignmentStatementAst.Right is VariableExpressionAst varAst &&
             varAst.VariablePath.UserPath == "null")
+
+        // Output Suppression: $null assignment
+        if (assignmentStatementAst.Right is CommandExpressionAst cmdExpr &&
+            cmdExpr.Expression is VariableExpressionAst rightVar &&
+            rightVar.VariablePath.UserPath == "null")
+
         {
             Results.OutputSuppression.Add(assignmentStatementAst);
         }
+
 
         if (assignmentStatementAst.Operator == TokenKind.PlusEquals)
         {
             if (assignmentStatementAst.Right is not ConstantExpressionAst ce ||
                 (ce.Value is not int && ce.Value is not double && ce.Value is not decimal))
+
+        // Array Addition: $array = @()
+        // Note: original script only flagged usage of += on arrays.
+        // Array/String Addition: +=
+        if (assignmentStatementAst.Operator == TokenKind.PlusEquals)
+        {
+            if (assignmentStatementAst.Right is CommandExpressionAst ceAst && ceAst.Expression is ConstantExpressionAst constAst)
+            {
+                if (constAst.Value is int || constAst.Value is double || constAst.Value is decimal)
+                {
+                    // numeric operations are ignored
+                }
+                else
+                {
+                    Results.ArrayAddition.Add(assignmentStatementAst);
+                    Results.StringAddition.Add(assignmentStatementAst);
+                }
+            }
+            else
             {
                 Results.ArrayAddition.Add(assignmentStatementAst);
                 Results.StringAddition.Add(assignmentStatementAst);
             }
         }
+
         return AstVisitAction.Continue;
     }
 
@@ -31,6 +59,10 @@ public class ScriptAnalyzerVisitor : AstVisitor2
     {
         if (commandAst.Redirections.Count > 0 &&
             commandAst.Redirections[0]?.ToString() == ">$null")
+        // Output Suppression: > $null
+        if (commandAst.Redirections.Count > 0 &&
+            commandAst.Redirections[0] != null &&
+            commandAst.Redirections[0].ToString() == ">$null")
         {
             Results.OutputSuppression.Add(commandAst);
         }
@@ -51,6 +83,19 @@ public class ScriptAnalyzerVisitor : AstVisitor2
                 Results.DynamicObjectCreation.Add(commandAst);
             }
             else if (WildcardPattern.Get("Get-WmiObject", WildcardOptions.IgnoreCase).IsMatch(commandName))
+            if (string.Equals(commandName, "Get-Content", StringComparison.OrdinalIgnoreCase))
+            {
+                Results.LargeFileProcessing.Add(commandAst);
+            }
+            else if (string.Equals(commandName, "Write-Host", StringComparison.OrdinalIgnoreCase))
+            {
+                Results.WriteHostUsage.Add(commandAst);
+            }
+            else if (string.Equals(commandName, "Add-Member", StringComparison.OrdinalIgnoreCase))
+            {
+                Results.DynamicObjectCreation.Add(commandAst);
+            }
+            else if (string.Equals(commandName, "Get-WmiObject", StringComparison.OrdinalIgnoreCase))
             {
                 Results.CmdletPipelineWrapping.Add(commandAst);
             }
@@ -65,6 +110,13 @@ public class ScriptAnalyzerVisitor : AstVisitor2
         {
             Results.OutputSuppression.Add(commandExpressionAst);
         }
+        // Output Suppression: [void]
+        if (commandExpressionAst.Expression is TypeExpressionAst typeExpr &&
+            string.Equals(typeExpr.TypeName.Name, "void", StringComparison.OrdinalIgnoreCase))
+        {
+            Results.OutputSuppression.Add(commandExpressionAst);
+        }
+
         return AstVisitAction.Continue;
     }
 
@@ -83,6 +135,19 @@ public class ScriptAnalyzerVisitor : AstVisitor2
             }
         }
 
+        // Output Suppression: | Out-Null
+        if (pipelineAst.PipelineElements.Count > 0)
+        {
+            if (pipelineAst.PipelineElements[^1] is CommandAst lastCmd &&
+                lastCmd.CommandElements.Count > 0 &&
+                lastCmd.CommandElements[^1] is StringConstantExpressionAst lastElement &&
+                string.Equals(lastElement.Value, "Out-Null", StringComparison.OrdinalIgnoreCase))
+            {
+                Results.OutputSuppression.Add(pipelineAst);
+            }
+        }
+
+        // Cmdlet Pipeline Wrapping
         if (pipelineAst.PipelineElements.Count > 2)
         {
             Results.CmdletPipelineWrapping.Add(pipelineAst);
@@ -95,6 +160,9 @@ public class ScriptAnalyzerVisitor : AstVisitor2
         if (invokeMemberExpressionAst.Member != null)
         {
             var memberName = invokeMemberExpressionAst.Member.Value;
+        if (invokeMemberExpressionAst.Member is StringConstantExpressionAst member)
+        {
+            var memberName = member.Value;
             if (memberName == "Add")
             {
                 Results.ArrayAddition.Add(invokeMemberExpressionAst);
@@ -102,15 +170,19 @@ public class ScriptAnalyzerVisitor : AstVisitor2
             else if (memberName == "ReadLines" &&
                      invokeMemberExpressionAst.Expression is TypeExpressionAst typeAst &&
                      typeAst.TypeName.Name == "File")
+            else if (memberName == "ReadLines" && invokeMemberExpressionAst.Expression is TypeExpressionAst typeExpr &&
+                     typeExpr.TypeName.Name == "File")
             {
                 Results.LargeFileProcessing.Add(invokeMemberExpressionAst);
             }
         }
+
         return AstVisitAction.Continue;
     }
 
     public override AstVisitAction VisitBinaryExpression(BinaryExpressionAst binaryExpressionAst)
     {
+        // String Addition: -f or +
         if (binaryExpressionAst.Operator == TokenKind.Format ||
             (binaryExpressionAst.Operator == TokenKind.Plus &&
              (binaryExpressionAst.Left is StringConstantExpressionAst ||
@@ -123,6 +195,7 @@ public class ScriptAnalyzerVisitor : AstVisitor2
 
     public override AstVisitAction VisitExpandableStringExpression(ExpandableStringExpressionAst expandableStringExpressionAst)
     {
+        // String Addition: "$()"
         if (expandableStringExpressionAst.NestedExpressions.Count > 0)
         {
             Results.StringAddition.Add(expandableStringExpressionAst);
@@ -136,6 +209,12 @@ public class ScriptAnalyzerVisitor : AstVisitor2
         {
             Results.LargeFileProcessing.Add(typeExpressionAst);
         }
+        // Large File Processing: [StreamReader]
+        if (string.Equals(typeExpressionAst.TypeName.Name, "StreamReader", StringComparison.OrdinalIgnoreCase))
+        {
+            Results.LargeFileProcessing.Add(typeExpressionAst);
+        }
+
         return AstVisitAction.Continue;
     }
 
@@ -181,7 +260,6 @@ public class ScriptAnalyzerVisitor : AstVisitor2
         {
             Results.LargeLoops.Add(forEachStatementAst);
         }
-        return AstVisitAction.Continue;
     }
 
     public override AstVisitAction VisitFunctionDefinition(FunctionDefinitionAst functionDefinitionAst)
@@ -190,6 +268,11 @@ public class ScriptAnalyzerVisitor : AstVisitor2
         {
             Results.RepeatedFunctionCalls.Add(functionDefinitionAst);
         }
+        if (System.Text.RegularExpressions.Regex.IsMatch(functionDefinitionAst.Body.Extent.Text, @"for\s*\(", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+        {
+            Results.RepeatedFunctionCalls.Add(functionDefinitionAst);
+        }
+
         return AstVisitAction.Continue;
     }
 
@@ -199,6 +282,11 @@ public class ScriptAnalyzerVisitor : AstVisitor2
         {
             Results.DynamicObjectCreation.Add(convertExpressionAst);
         }
+        if (string.Equals(convertExpressionAst.Type.TypeName.Name, "pscustomobject", StringComparison.OrdinalIgnoreCase))
+        {
+            Results.DynamicObjectCreation.Add(convertExpressionAst);
+        }
+
         return AstVisitAction.Continue;
     }
 
@@ -209,6 +297,14 @@ public class ScriptAnalyzerVisitor : AstVisitor2
         {
             Results.DynamicObjectCreation.Add(memberExpressionAst);
         }
+        if (memberExpressionAst.Member is StringConstantExpressionAst member &&
+            member.Value == "Properties" &&
+            memberExpressionAst.Expression is TypeExpressionAst typeExpr &&
+            typeExpr.TypeName.Name == "PSObject")
+        {
+            Results.DynamicObjectCreation.Add(memberExpressionAst);
+        }
+
         return AstVisitAction.Continue;
     }
 }

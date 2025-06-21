@@ -19,6 +19,21 @@ public static class Analyzer
             throw new InvalidOperationException("Parse errors encountered");
         }
 
+        return AnalyzeAst(ast);
+    }
+
+    public static CodeAnalysisResults AnalyzeScriptBlock(ScriptBlock scriptBlock)
+    {
+        if (scriptBlock is null)
+        {
+            throw new ArgumentNullException(nameof(scriptBlock));
+        }
+
+        return AnalyzeAst(scriptBlock.Ast);
+    }
+
+    private static CodeAnalysisResults AnalyzeAst(Ast ast)
+    {
         var visitor = new ScriptAnalyzerVisitor();
         ast.Visit(visitor);
         return visitor.Results;
