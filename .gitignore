@@ -1,3 +1,14 @@
-dist*
-Internal*
-tests.md
+# Build artifacts
+dist/
+bin/
+obj/
+*.nupkg
+
+# IDE and editor folders
+.vscode/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
