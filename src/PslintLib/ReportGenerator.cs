@@ -6,6 +6,24 @@ namespace PslintLib.Analysis;
 
 public static class ReportGenerator
 {
+    private static IScriptExtent? GetExtentFromIssue(object issue)
+    {
+        var issueType = issue.GetType();
+        var extentProperty = issueType.GetProperty("Extent");
+        if (extentProperty != null)
+        {
+            return extentProperty.GetValue(issue) as IScriptExtent;
+        }
+
+        // Fallback - try to cast directly if it's an AST node
+        if (issue is IScriptExtent extent)
+        {
+            return extent;
+        }
+
+        return null;
+    }
+
     public static LintReport Generate(CodeAnalysisResults results, string? scriptPath, bool isCI)
     {
         var report = new LintReport
@@ -30,8 +48,7 @@ public static class ReportGenerator
             var issueList = new List<LintIssue>();
             foreach (var issue in issues)
             {
-                dynamic dynIssue = issue;
-                IScriptExtent extent = dynIssue.Extent;
+                var extent = GetExtentFromIssue(issue);
                 var suggestion = categoryName switch
                 {
                     "OutputSuppression" => "Consider using [void] for performance and clarity instead of piping to Out-Null or assigning to $null.",
@@ -42,15 +59,15 @@ public static class ReportGenerator
                     "WriteHostUsage" => "Write-Host writes directly to the console, which can limit script portability and prevent capturing output. For general output, prefer Write-Output. For logging or debugging, consider Write-Verbose, Write-Debug, or a dedicated logging framework.",
                     "LargeLoops" => "Very large loops can be slow. Consider optimizing the logic inside the loop or exploring faster, array-based operations with .NET methods where possible.",
                     "RepeatedFunctionCalls" => "Calling the same function repeatedly with the same parameters can be inefficient. Consider caching the results in a variable.",
-                    "CmdletPipelineWrapping" => extent.Text.Contains("Get-WmiObject") ? "`Get-WmiObject` is obsolete. Use `Get-CimInstance` instead. Also, try to use a `-Filter` parameter instead of piping to `Where-Object` to improve performance by filtering at the source." : "Piping to `Where-Object` can be inefficient for large datasets. Where possible, use a cmdlet-specific `-Filter` parameter to filter results at the source. Long pipelines can also be harder to read and debug.",
+                    "CmdletPipelineWrapping" => (extent?.Text?.Contains("Get-WmiObject") == true) ? "`Get-WmiObject` is obsolete. Use `Get-CimInstance` instead. Also, try to use a `-Filter` parameter instead of piping to `Where-Object` to improve performance by filtering at the source." : "Piping to `Where-Object` can be inefficient for large datasets. Where possible, use a cmdlet-specific `-Filter` parameter to filter results at the source. Long pipelines can also be harder to read and debug.",
                     "DynamicObjectCreation" => "Creating custom objects with `[PSCustomObject]` or `Add-Member` inside loops can be slow. For performance-critical scenarios, consider defining a class.",
                     _ => "Review for potential optimization."
                 };
 
                 issueList.Add(new LintIssue
                 {
-                    Line = extent.StartLineNumber,
-                    Text = extent.Text.Trim(),
+                    Line = extent?.StartLineNumber ?? 0,
+                    Text = extent?.Text?.Trim() ?? "Unknown",
                     Suggestion = suggestion
                 });
             }
