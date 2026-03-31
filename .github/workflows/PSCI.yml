@@ -2,6 +2,7 @@ name: PSCI
 permissions:
   contents: read
   packages: write
+  security-events: write
 
 on:
   push:
@@ -12,39 +13,63 @@ on:
       - main
 
 jobs:
-  psscriptanalyzer:
-    runs-on: windows-latest
+  codeql:
+    name: CodeQL C#
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v2
+      with:
+        languages: csharp
+
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v2
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+
+  markdownlint:
+    name: Markdown Lint
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
+      - name: Run Markdown Lint
+        uses: DavidAnson/markdownlint-cli2-action@v14
+        with:
+          config: .github/workflows/.markdownlint.yaml
+          globs: "**/*.md"
+
+  build-and-publish:
+    name: Build and Publish
+    needs: [codeql, markdownlint]
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
       - name: PowerShell Module Cache
         id: _c232508244db4fd897e4b9e04710cc76
         uses: potatoqualitee/psmodulecache@v6.2
         with:
-          modules-to-cache: PSScriptAnalyzer, Pester, pslint, psake
+          modules-to-cache: PSScriptAnalyzer, Pester
 
-      - name: Run Pester tests
+      - name: Build PowerShell Module
         shell: pwsh
-        run: |
-          Import-Module Pester -Force
-          Invoke-Pester -Path ./Tests -CI
+        run: ./build.ps1
 
       - name: Run pslint self-check
         shell: pwsh
         run: |
-          Import-Module ./pslint.psm1
+          Import-Module ./dist/pslint/pslint.psd1
           pslint -ScriptBlock { Write-Host "CI test" }
-
-      - name: Publish PowerShell Module to PowerShellGallery
-        id: _38ad555c65014b818d792b3b7abd1b2b
-        uses: mod-posh/PublishPowerShellModule@v0.0.1.0
-        with:
-          ModuleName: 'pslint'
-          Output: 'pslint/dist'
-          ApiKey: ${{ secrets.NUGETAPIKEY }}
-          Debug: 'true'
 
       - name: Run PSScriptAnalyzer
         id: _e0a3d4e558104409b61a28bba331e88a
@@ -53,50 +78,11 @@ jobs:
           recurse: $true
           customRulePath: .github/workflows/PSScriptAnalyzerSettings.psd1
 
-      # Not using microsoft/psscriptanalyzer-action@v1.0 because we're missing psm1 in src + need to exclude generated ps1xml
-      #- name: Run PSScriptAnalyzer if not psm1
-      #  id: _27927a8cb26b43018b8eefd1d4deb99d
-      #  shell: pwsh
-      #  run: |
-      #    $rootfiles=gci [environment::currentdirectory
-      #    if($rootfiles -notcontains "*.psm1"){return}else{continue}
-      #    Import-Module ConvertToSARIF -Force
-      #
-      #    Get-ChildItem -Path ./src/ -Filter *.ps* -Recurse -File |
-      #    Where-Object { $_.Name -ne 'Sync-WithProfiler.ps1' } |
-      #    Invoke-ScriptAnalyzer -Settings ./.github/workflows/PSScriptAnalyzerSettings.psd1 |
-      #    ConvertTo-SARIF -FilePath results.sarif
-
-      # - name: Test PowerShell Module
-      #    id: _baa1ace4bf484e1abe28594876984019
-      #  uses: 
-      #  with:
-      #    input:
-
-      # - name: Build PowerShell Module
-      #  id: _83694d09914143d28d87f3f4521bb663
-      #  uses: 
-      #  with:
-      #    input:
-
-  # codeql:
-  #   name: CodeQL C#
-  #   runs-on: ubuntu-latest
-  #   permissions:
-  #     actions: read
-  #     contents: read
-  #     security-events: write
-  #   steps:
-  #   - name: Checkout repository
-  #     uses: actions/checkout@v3
-
-  #   - name: Initialize CodeQL
-  #     uses: github/codeql-action/init@v2
-  #     with:
-  #       languages: csharp
-
-  #   - name: Autobuild
-  #     uses: github/codeql-action/autobuild@v2
-
-  #   - name: Perform CodeQL Analysis
-  #     uses: github/codeql-action/analyze@v2
+      - name: Publish PowerShell Module to PowerShellGallery
+        id: _38ad555c65014b818d792b3b7abd1b2b
+        uses: mod-posh/PublishPowerShellModule@v0.0.1.0
+        with:
+          ModuleName: 'pslint'
+          Output: 'dist/pslint'
+          ApiKey: ${{ secrets.NUGETAPIKEY }}
+          Debug: 'true'

@@ -61,6 +61,8 @@ public static class ReportGenerator
                     "RepeatedFunctionCalls" => "Calling the same function repeatedly with the same parameters can be inefficient. Consider caching the results in a variable.",
                     "CmdletPipelineWrapping" => (extent?.Text?.Contains("Get-WmiObject") == true) ? "`Get-WmiObject` is obsolete. Use `Get-CimInstance` instead. Also, try to use a `-Filter` parameter instead of piping to `Where-Object` to improve performance by filtering at the source." : "Piping to `Where-Object` can be inefficient for large datasets. Where possible, use a cmdlet-specific `-Filter` parameter to filter results at the source. Long pipelines can also be harder to read and debug.",
                     "DynamicObjectCreation" => "Creating custom objects with `[PSCustomObject]` or `Add-Member` inside loops can be slow. For performance-critical scenarios, consider defining a class.",
+                    "ParallelExecution" => (extent?.Text?.IndexOf("Start-Job", StringComparison.OrdinalIgnoreCase) >= 0) ? "Start-Job creates a new process for each job, which has high overhead. Consider Start-ThreadJob or ForEach-Object -Parallel instead." : "When using ForEach-Object -Parallel, explicitly specify the -ThrottleLimit parameter. The default is 5, but you should balance overhead with the work being done.",
+                    "ManifestEfficiency" => "In module manifests, avoid using wildcards ('*') or omitting entries like CmdletsToExport, FunctionsToExport, and AliasesToExport. Use an empty array '@()' to explicitly indicate nothing is exported. This dramatically improves module loading performance by preventing slow CDXML scanning.",
                     _ => "Review for potential optimization."
                 };
 
@@ -77,40 +79,13 @@ public static class ReportGenerator
 
         if (isCI)
         {
-            foreach (var (category, list) in report.Details)
+            foreach (var kvp in report.Details)
             {
+                var category = kvp.Key;
+                var list = kvp.Value;
                 foreach (var issue in list)
                 {
                     Console.WriteLine($"::warning file={report.ScriptPath},line={issue.Line}::[{category}] {issue.Suggestion}");
-                }
-            }
-
-            // In CI, only summary is returned, similar to PowerShell version
-            return report;
-        }
-        else
-        {
-            Console.WriteLine();
-            Console.WriteLine("=== PowerShell Performance Analysis Report ===");
-            Console.WriteLine($"Script: {report.ScriptPath}");
-            Console.WriteLine($"Time: {report.Timestamp}");
-            Console.WriteLine();
-            Console.WriteLine("Summary:");
-            Console.WriteLine($"Total Issues Found: {report.Summary.TotalIssues}");
-
-            foreach (var (category, list) in report.Details)
-            {
-                var count = report.Summary.Categories[category];
-                if (count <= 0)
-                    continue;
-
-                Console.WriteLine();
-                Console.WriteLine($"== {category} ({count} issues) ==");
-                foreach (var issue in list)
-                {
-                    Console.WriteLine($"  Line {issue.Line}:");
-                    Console.WriteLine($"    Code: {issue.Text}");
-                    Console.WriteLine($"    Suggestion: {issue.Suggestion}");
                 }
             }
         }

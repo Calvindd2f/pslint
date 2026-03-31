@@ -71,6 +71,31 @@ public class ScriptAnalyzerVisitor : AstVisitor2
             {
                 Results.CmdletPipelineWrapping.Add(commandAst);
             }
+            else if (string.Equals(commandName, "Start-Job", StringComparison.OrdinalIgnoreCase))
+            {
+                Results.ParallelExecution.Add(commandAst);
+            }
+            else if (string.Equals(commandName, "ForEach-Object", StringComparison.OrdinalIgnoreCase) || 
+                     string.Equals(commandName, "%", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(commandName, "foreach", StringComparison.OrdinalIgnoreCase))
+            {
+                bool hasParallel = false;
+                bool hasThrottleLimit = false;
+                foreach (var element in commandAst.CommandElements)
+                {
+                    if (element is CommandParameterAst paramAst)
+                    {
+                        if (paramAst.ParameterName.StartsWith("Par", StringComparison.OrdinalIgnoreCase))
+                            hasParallel = true;
+                        if (paramAst.ParameterName.StartsWith("Thr", StringComparison.OrdinalIgnoreCase))
+                            hasThrottleLimit = true;
+                    }
+                }
+                if (hasParallel && !hasThrottleLimit)
+                {
+                    Results.ParallelExecution.Add(commandAst);
+                }
+            }
         }
         return AstVisitAction.Continue;
     }

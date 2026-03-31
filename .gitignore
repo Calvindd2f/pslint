@@ -17,4 +17,4 @@ obj/
 *.log
 
 # Temporary files
-
+build_output*

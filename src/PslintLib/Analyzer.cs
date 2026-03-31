@@ -16,10 +16,11 @@ public static class Analyzer
         var ast = Parser.ParseFile(path, out Token[] tokens, out ParseError[] errors);
         if (errors.Length > 0)
         {
-            throw new InvalidOperationException("Parse errors encountered");
+            var errorMessages = string.Join(Environment.NewLine, System.Linq.Enumerable.Select(errors, e => $"[Line {e.Extent.StartLineNumber}, Column {e.Extent.StartColumnNumber}] {e.Message}"));
+            throw new InvalidOperationException($"Parse errors encountered in {path}:{Environment.NewLine}{errorMessages}");
         }
 
-        return AnalyzeAst(ast);
+        return AnalyzeAst(ast, path.EndsWith(".psd1", StringComparison.OrdinalIgnoreCase));
     }
 
     public static CodeAnalysisResults AnalyzeScriptBlock(ScriptBlock scriptBlock)
@@ -29,13 +30,24 @@ public static class Analyzer
             throw new ArgumentNullException(nameof(scriptBlock));
         }
 
-        return AnalyzeAst(scriptBlock.Ast);
+        return AnalyzeAst(scriptBlock.Ast, false);
     }
 
-    private static CodeAnalysisResults AnalyzeAst(Ast ast)
+    private static CodeAnalysisResults AnalyzeAst(Ast ast, bool isManifest)
     {
         var visitor = new ScriptAnalyzerVisitor();
         ast.Visit(visitor);
-        return visitor.Results;
+        var results = visitor.Results;
+
+        if (isManifest)
+        {
+            var pds1Ast = System.Linq.Enumerable.FirstOrDefault(ast.FindAll(a => a is HashtableAst, true));
+            if (pds1Ast is HashtableAst hashtableAst)
+            {
+                ManifestAnalyzer.Analyze(hashtableAst, results);
+            }
+        }
+
+        return results;
     }
 }

@@ -83,7 +83,7 @@
 
 ![Product Name Screen Shot](https://app-support.com/public/img/plint.webp)
 
-`pslint` is a static analysis tool for PowerShell that focuses on identifying performance bottlenecks in scripts and modules. Unlike linters that enforce idiomatic style, `pslint` prioritizes optimizations that can significantly reduce resource consumption and execution time. This makes it particularly useful for scenarios like:
+`pslint` is a high-performance, statically compiled C# binary module for PowerShell that focuses on identifying performance bottlenecks in scripts and modules. Unlike linters that enforce idiomatic style, `pslint` prioritizes AST-based optimizations that can significantly reduce resource consumption and execution time. This makes it particularly useful for scenarios like:
 
 - Optimizing long-running scripts.
 - Reducing execution time for Azure Functions and Runbooks.
@@ -234,7 +234,7 @@ In Visual Studio Code set "powershell.scriptAnalysis.settingsPath" to the settin
 
 ## Rule Reference
 
-For details on the built-in rules and examples of recommended fixes see [docs/rules_overview.md](docs/rules_overview.md).
+For details on the built-in rules, run the analysis to receive actionable suggestions inline. Extensibility and custom rules paths via standard PS settings files are supported.
 
 <!-- ROADMAP -->
 
