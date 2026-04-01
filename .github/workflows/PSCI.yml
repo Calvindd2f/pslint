@@ -70,12 +70,26 @@ jobs:
         with:
           modules-to-cache: PSScriptAnalyzer, Pester
 
-      - name: Build PowerShell Module
-        shell: ${{ matrix.shell }}
+      - name: Build PowerShell Module (pwsh)
+        if: matrix.shell == 'pwsh'
+        shell: pwsh
         run: ./build.ps1
 
-      - name: Run pslint self-check
-        shell: ${{ matrix.shell }}
+      - name: Build PowerShell Module (powershell)
+        if: matrix.shell == 'powershell'
+        shell: powershell
+        run: ./build.ps1
+
+      - name: Run pslint self-check (pwsh)
+        if: matrix.shell == 'pwsh'
+        shell: pwsh
+        run: |
+          Import-Module ./dist/pslint/pslint.psd1
+          pslint -ScriptBlock { Write-Host "CI test" } -BenchmarkMode -OutputFormat JSON
+
+      - name: Run pslint self-check (powershell)
+        if: matrix.shell == 'powershell'
+        shell: powershell
         run: |
           Import-Module ./dist/pslint/pslint.psd1
           pslint -ScriptBlock { Write-Host "CI test" } -BenchmarkMode -OutputFormat JSON
