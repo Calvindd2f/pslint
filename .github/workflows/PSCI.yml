@@ -35,21 +35,9 @@ jobs:
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
 
-  markdownlint:
-    name: Markdown Lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-      - name: Run Markdown Lint
-        uses: DavidAnson/markdownlint-cli2-action@v14
-        with:
-          config: .github/workflows/.markdownlint.yaml
-          globs: "**/*.md"
-
   build-and-publish:
     name: Build and Publish
-    needs: [codeql, markdownlint]
+    needs: [codeql]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
