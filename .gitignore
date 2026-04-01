@@ -18,3 +18,5 @@ obj/
 
 # Temporary files
 build_output*
+todo*.md
+*.txt

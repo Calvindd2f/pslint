@@ -50,7 +50,16 @@ jobs:
   build-and-publish:
     name: Build and Publish
     needs: [codeql, markdownlint]
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        shell: [pwsh, powershell]
+        exclude:
+          - os: ubuntu-latest
+            shell: powershell
+          - os: macos-latest
+            shell: powershell
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -62,14 +71,14 @@ jobs:
           modules-to-cache: PSScriptAnalyzer, Pester
 
       - name: Build PowerShell Module
-        shell: pwsh
+        shell: ${{ matrix.shell }}
         run: ./build.ps1
 
       - name: Run pslint self-check
-        shell: pwsh
+        shell: ${{ matrix.shell }}
         run: |
           Import-Module ./dist/pslint/pslint.psd1
-          pslint -ScriptBlock { Write-Host "CI test" }
+          pslint -ScriptBlock { Write-Host "CI test" } -BenchmarkMode -OutputFormat JSON
 
       - name: Run PSScriptAnalyzer
         id: _e0a3d4e558104409b61a28bba331e88a

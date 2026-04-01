@@ -10,7 +10,7 @@ namespace PslintLib;
 [Alias("Scan-PowerShellScriptAdvanced", "pslint")]
 public class InvokePslintCommand : PSCmdlet
 {
-    [Parameter(ParameterSetName = "Path", Position = 0, ValueFromPipelineByPropertyName = true)]
+    [Parameter(Mandatory = true, ParameterSetName = "Path", Position = 0, ValueFromPipelineByPropertyName = true)]
     public string Path { get; set; } = string.Empty;
 
     [Parameter(ParameterSetName = "ScriptBlock", Position = 0)]
@@ -43,27 +43,6 @@ public class InvokePslintCommand : PSCmdlet
     {
         if (ParameterSetName == "Path")
         {
-            if (string.IsNullOrWhiteSpace(Path))
-            {
-                var moduleName = this.MyInvocation.MyCommand.Module?.Name ?? "pslint";
-                var moduleAuthor = this.MyInvocation.MyCommand.Module?.Author ?? "Calvin Bergin <Calvindd2f>";
-                var moduleVersion = this.MyInvocation.MyCommand.Module?.Version?.ToString() ?? "2.1.0";
-                
-                Host.UI.WriteLine($"{moduleName} v{moduleVersion} by {moduleAuthor}");
-                Host.UI.WriteLine("Please define input path:");
-                Path = Host.UI.ReadLine()?.Trim() ?? string.Empty;
-                
-                if (string.IsNullOrWhiteSpace(Path))
-                {
-                    ThrowTerminatingError(new ErrorRecord(
-                        new System.ArgumentException("Path cannot be empty."),
-                        "EmptyPath",
-                        ErrorCategory.InvalidArgument,
-                        null
-                    ));
-                }
-            }
-            
             if (!System.Text.RegularExpressions.Regex.IsMatch(Path, "(?i)\\.(ps1|psm1|psd1)$"))
             {
                 ThrowTerminatingError(new ErrorRecord(
@@ -109,7 +88,12 @@ public class InvokePslintCommand : PSCmdlet
             var scripts = GetBenchmarkScripts();
             if (scripts != null && scripts.Any())
             {
-                benchmarkOutputs = RunBenchmarksAsync(scripts).GetAwaiter().GetResult();
+                var task = RunBenchmarksAsync(scripts);
+                while (!task.IsCompleted)
+                {
+                    System.Threading.Thread.Sleep(50);
+                }
+                benchmarkOutputs = task.GetAwaiter().GetResult();
                 // Output benchmark results
                 foreach (var outStr in benchmarkOutputs)
                 {
@@ -142,15 +126,7 @@ public class InvokePslintCommand : PSCmdlet
         switch (OutputFormat.ToLowerInvariant())
         {
             case "json":
-                using (var ps = System.Management.Automation.PowerShell.Create(RunspaceMode.CurrentRunspace))
-                {
-                    ps.AddCommand("ConvertTo-Json").AddParameter("InputObject", report).AddParameter("Depth", 5);
-                    var jsonResult = ps.Invoke();
-                    if (jsonResult.Count > 0)
-                    {
-                        formattedOutput = string.Join(System.Environment.NewLine, jsonResult.Select(r => r.ToString()));
-                    }
-                }
+                formattedOutput = System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
                 break;
             case "csv":
                 var csvLines = new System.Collections.Generic.List<string> { "Category,Line,Text,Suggestion" };
@@ -240,13 +216,13 @@ public class InvokePslintCommand : PSCmdlet
 
                 if (modules.Count == 0)
                 {
-                    Host.UI.WriteLine("PSScriptAnalyzer is not installed. Installing from PSGallery...");
-                    ps.AddCommand("Install-Module")
-                      .AddParameter("Name", "PSScriptAnalyzer")
-                      .AddParameter("Force", true)
-                      .AddParameter("Scope", "CurrentUser");
-                    ps.Invoke();
-                    ps.Commands.Clear();
+                    ThrowTerminatingError(new ErrorRecord(
+                        new System.InvalidOperationException("PSScriptAnalyzer is required but not installed. Please install it with 'Install-Module PSScriptAnalyzer'."),
+                        "PSScriptAnalyzerMissing",
+                        ErrorCategory.ResourceUnavailable,
+                        null
+                    ));
+                    return;
                 }
 
                 ps.AddCommand("Invoke-ScriptAnalyzer");

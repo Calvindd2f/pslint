@@ -84,7 +84,7 @@
 `pslint` analyzes your code using the Abstract Syntax Tree (AST) to detect a variety of performance issues, including:
 
 - **Benchmark Mode**: Test code snippets or fully configured scripts synchronously with `-BenchmarkMode`. Includes natively generated Microsoft performance benchmarks.
-- **PSScriptAnalyzer Integration**: Dynamically install and invoke Microsoft's comprehensive `PSScriptAnalyzer` via the `-QueuePSSA` parameter alongside native checks.
+- **PSScriptAnalyzer Integration**: Native support for invoking Microsoft's comprehensive `PSScriptAnalyzer` via the `-QueuePSSA` parameter. Now securely defined as a `RequiredModules` dependency.
 - **Output Formats**: Export linting data conveniently as JSON, CSV, or formatted plaintext via the `-OutputPath` and `-OutputFormat` properties.
 - **Output Suppression**: Detects inefficient ways of suppressing output like `| Out-Null` or `> $null` and suggests faster alternatives like `[void]`.
 - **Array Addition**: Identifies the use of the `+=` operator on arrays, which can be slow, and recommends using `System.Collections.Generic.List[T]`.

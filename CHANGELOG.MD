@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [v2.2.0]
+
+### Added
+- **Native JSON Serialization**: Massively improved JSON output performance by replacing the PowerShell pipeline with native .NET `System.Text.Json` serialization.
+- **Cross-Platform Testing**: The CI/CD workflow matrix now properly builds and tests the module on Windows, Ubuntu, and macOS using both `pwsh` and legacy `powershell`.
+- **Improved Cmdlet Safety**: Avoided sync-over-async thread deadlocks with a unified wait approach during benchmark execution.
+- **Strict Dependencies**: Removed in-flight `PSScriptAnalyzer` dynamic installation. Module manifest now natively requires `PSScriptAnalyzer`.
+- **Dependency Isolation**: Cleaned up the `PslintLib.csproj` SDK references, dropping `Microsoft.PowerShell.SDK` in favor of strict `PowerShellStandard.Library`.
+
+---
+
 ## [v2.1.2]
 
 ### Added
