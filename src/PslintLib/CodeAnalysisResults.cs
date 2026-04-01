@@ -14,6 +14,8 @@ public class CodeAnalysisResults
     public List<object> RepeatedFunctionCalls { get; } = new();
     public List<object> CmdletPipelineWrapping { get; } = new();
     public List<object> DynamicObjectCreation { get; } = new();
+    public List<object> ParallelExecution { get; } = new();
+    public List<object> ManifestEfficiency { get; } = new();
 
     public void Clear()
     {
@@ -27,5 +29,7 @@ public class CodeAnalysisResults
         RepeatedFunctionCalls.Clear();
         CmdletPipelineWrapping.Clear();
         DynamicObjectCreation.Clear();
+        ParallelExecution.Clear();
+        ManifestEfficiency.Clear();
     }
 }

@@ -1,11 +1,11 @@
 @{
-    RootModule           = 'pslint.psm1'
+    RootModule           = 'PslintLib.dll'
 
     Author               = 'Calvin Bergin <Calvindd2f>'
 
     CompanyName          = 'Calvindd2f'
 
-    ModuleVersion        = '2.0.0'
+    ModuleVersion        = '2.2.0'
 
     GUID                 = 'bc931fbd-b205-45be-9ecf-4f9db144998b'
 
@@ -17,13 +17,15 @@
 
     CompatiblePSEditions = @('Desktop', 'Core')
 
-    FunctionsToExport    = @('pslint') # Also ensure all three entries are present
+    RequiredModules      = @('PSScriptAnalyzer')
 
-    AliasesToExport      = @('Scan-PowerShellScriptAdvanced')
+    FunctionsToExport    = @() # Also ensure all three entries are present
+
+    AliasesToExport      = @('Scan-PowerShellScriptAdvanced', 'pslint')
 
     VariablesToExport    = @()  # Specify an empty array, not $null
 
-    CmdletsToExport      = @()  #  A missing or $null entry is equivalent to specifying the wildcard *
+    CmdletsToExport      = @('Invoke-Pslint')  #  A missing or $null entry is equivalent to specifying the wildcard *
 
     PrivateData          = @{
         PSData = @{
