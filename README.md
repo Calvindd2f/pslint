@@ -1,14 +1,4 @@
-<!-- Improved compatibility of back to top link: See: https://github.com/othneildrew/Best-README-Template/pull/73 -->
-
 <a id="readme-top"></a>
-
-<!--
-*** Thanks for checking out the Best-README-Template. If you have a suggestion
-*** that would make this better, please fork the repo and create a pull request
-*** or simply open an issue with the tag "enhancement".
-*** Don't forget to give the project a star!
-*** Thanks again! Now go create something AMAZING! :D
--->
 
 <!-- PROJECT SHIELDS -->
 <!--
@@ -89,22 +79,24 @@
 - Reducing execution time for Azure Functions and Runbooks.
 - Improving the performance of resource-intensive modules.
 
-
-
 ### Features
 
 `pslint` analyzes your code using the Abstract Syntax Tree (AST) to detect a variety of performance issues, including:
 
+- **Benchmark Mode**: Test code snippets or fully configured scripts synchronously with `-BenchmarkMode`. Includes natively generated Microsoft performance benchmarks.
+- **PSScriptAnalyzer Integration**: Dynamically install and invoke Microsoft's comprehensive `PSScriptAnalyzer` via the `-QueuePSSA` parameter alongside native checks.
+- **Output Formats**: Export linting data conveniently as JSON, CSV, or formatted plaintext via the `-OutputPath` and `-OutputFormat` properties.
 - **Output Suppression**: Detects inefficient ways of suppressing output like `| Out-Null` or `> $null` and suggests faster alternatives like `[void]`.
-- **Array Addition**: Identifies the use of the `+=` operator on arrays, which can be slow, and recommends using `System.Collections.ArrayList` or `System.Collections.Generic.List[T]`.
+- **Array Addition**: Identifies the use of the `+=` operator on arrays, which can be slow, and recommends using `System.Collections.Generic.List[T]`.
 - **String Concatenation**: Flags inefficient string concatenation and suggests using methods like the `-f` format operator or `StringBuilder`.
 - **Large File Processing**: Warns against reading large files into memory at once with `Get-Content` and suggests using streaming methods.
 - **`Write-Host` Usage**: Recommends using `Write-Output` or other appropriate cmdlets over `Write-Host` for better stream control.
-- **And more...**: Including checks for large collection lookups, inefficient loops, and dynamic object creation with `Add-Member`.
+- **And more...**: Including checks for large collection lookups, inefficient loops, and dynamic object creation.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Custom Rules
+
 <!-- GETTING STARTED -->
 
 ## Getting Started
@@ -122,22 +114,27 @@ Install-Module -Name pslint -Repository PSGallery -Scope CurrentUser
 Import-Module pslint
 ```
 
-
 <!-- USAGE EXAMPLES -->
 
 ## Usage
 
-You can analyze a script file directly or analyze a `ScriptBlock` object.
+You can analyze a script file directly or analyze a `ScriptBlock` object. Internally, execution invokes the native C# AST processor.
 
 **Analyze a file:**
 
-```powershell
+```pwsh
 pslint -Path 'C:\path\to\your-script.ps1'
+```
+
+**Run Benchmarks Alongside Analysis:**
+
+```pwsh
+pslint -Path .\script.ps1 -BenchmarkMode -QueuePSSA
 ```
 
 **Analyze a ScriptBlock:**
 
-```powershell
+```pwsh
 $scriptBlock = {
     $myArray = @()
     1..1000 | ForEach-Object { $myArray += $_ }
@@ -147,74 +144,6 @@ pslint -ScriptBlock $scriptBlock
 ```
 
 **Example Output:**
-
-```pwsh
- === PowerShell Performance Analysis Report ===
- Script: C:\Users\c\win10_portscan.ps1
- Time: 2024-10-08 03:32:45
-
- Summary:
- Total Issues Found: 19
-
- == ArrayAddition (2 issues) ==
-
-   Line 81:
-     Code:
-       $IPList.Add($CurrIP)
-     Suggestion: Consider using ArrayList or Generic List for better performance
-
-   Line 135:
-     Code:
-       $hosts += [PSCustomObject]@{
-         value = "$($($IP.IP).Trim())";
-         port = "$($Port.Trim())";
-         }
-     Suggestion: Consider using ArrayList or Generic List for better performance
-
- == LargeCollectionLookup (1 issues) ==
-   Line 135:
-     Code:
-     @{
-         value = "$($($IP.IP).Trim())";
-         port = "$($Port.Trim())";
-     }
-     Suggestion: Consider using Dictionary<TKey,TValue> for large collections
-
- == OutputSuppression (10 issues) ==
-   Line 8:
-     Code: $null|out-null
-     Suggestion: Consider using [void] for better performance
-
-   Line 9:
-     Code: $null|out-null
-     Suggestion: Consider using [void] for better performance
-
- == WriteHostUsage (6 issues) ==
-   Line 97:
-     Code:
-       Write-Host "WARNING: Scan took longer than 15 seconds, ARP entries may have been flushed. Recommend lowering DelayMS parameter"
-     Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
-   Line 119:
-     Code:
-       Write-host "Started scanning at $($start_time)"
-     Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
-   Line 172:
-     Code:
-       Write-Host "Hosts Found: $($hosts.Count)"
-     Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
-   Line 175:
-     Code:
-       write-host $(ConvertTo-Json $hosts -Depth 5)
-     Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
-   Line 183:
-     Code:
-       Write-Host "Total Time: $($total.ToString())"
-     Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
-   Line 184:
-     Code:
-       Write-Host "Finished scanning at $($end_time)"
-     Suggestion: Consider using [Console]::writeline() , Write-Output or Write-Information.
-```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

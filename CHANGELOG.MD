@@ -1,40 +1,67 @@
 # Changelog
 
-## v2.1.1
+All notable changes to the `pslint` project will be documented in this file.
 
-### Added or Changed
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-- Handled missing inputs at invocation (print module info and prompt for input path)
-- Stopped auto-printing text report on invoke
-- Supported output formats: textonly, JSON, CSV, stdout (default)
-- Supported output path parameter (defaulting to current directory)
-- Implemented concise console report output (Script, Time, Summary, Total Issues, Issue breakdown)
-- Integrated PowerShellScriptAnalyzer via -QueuePSSA and -PSSAConfig
-- Updated PSCI.yml for C# CQL checks before b&r
-- Integrated .markdownlint.yml (is it .markdownlint.yaml?)
-- Updated build.ps1
-- Minimized PSGallery published package contents
+---
 
-## v2.1.0
+## [v2.1.2]
+
+### Added
+- **Benchmark Mode**: Added `-BenchmarkMode` to execute performance benchmarks asynchronously before AST inspection.
+- **Default Benchmarks**: Implemented built-in comparison tests for `Array Addition (+=)` vs `List<T>.Add()` and `ForEach-Object` Pipeline vs `foreach` Statements.
+- **Custom Benchmarks**: Support for isolated `before` and `after` script execution within managed runspaces via `-BenchmarkModeFileBefore` and `-BenchmarkModeFileAfter`.
+- **.ps1xml Support**: Added parsing support for `.ps1xml` files to evaluate performance anomalies in formatting and type configurations.
+- **Samples**: Provided sample scripts within the repository to easily test the `pslint` rules externally.
 
 ### Removed
+- **markdownlint.yml**: Removed the local `.markdownlint.yml` configuration.
 
-- Removed legacy script-based `Internal` and `Rules` directories.
-- Removed outdated `docs` and legacy unit tests.
+---
 
-### Added or Changed
+## [v2.1.1]
 
-- Migrated to a high-performance C# compiled binary module (`PslintLib.dll`).
-- Updated README and GitHub Actions workflow for the binary module.
+### Added
+- **Dynamic Input Prompting**: Successfully handles missing `Path` parameters by outputting the module version and interactively prompting the user.
+- **Output Formats**: Enhanced the `-OutputFormat` parameter to support:
+  - `stdout` (default styled console output)
+  - `textonly` (clean plaintext summary format)
+  - `JSON`
+  - `CSV`
+- **Output File Persistence**: Added the `-OutputPath` parameter which defaults to the current execution directory.
+- **PSScriptAnalyzer Integration**: Added native support for invoking Microsoft's `PSScriptAnalyzer`.
+  - Use `-QueuePSSA` to install and run analyzing cleanly inside the Runspace.
+  - Optionally specify rulesets via `-PSSAConfig`.
+- **Refined Console Report**: Formatted the default STDOUT report logically, categorizing errors and their respective lines and suggestions.
+- **CI Enhancements**: Updated GitHub Actions (`PSCI.yml`) to enforce C# `CodeQL` analysis checks prior to build and release stages.
+- **Build Scripts**: Updated `build.ps1` to reflect the new compiled deployment strategy.
 
-## v1.0
+### Changed
+- **PSGallery Footprint**: Minimized published package contents for a leaner distribution.
+- **Reporting Defaults**: Halted automatic aggressive console spam when invoking tests programmatically.
 
-### Added or Changed
+---
 
-- Fixed back to top alignment (revert changes)
-- Implemented pretty console output for CI
-- Added output from the endblock that isn't completely awful looking
+## [v2.1.0]
+
+### Added
+- **Core Engine Transformation**: Completely migrated `pslint` from an interpreted PowerShell script tool to a high-performance C# compiled binary module (`PslintLib.dll`).
+- **Binary Architecture Docs**: Updated documentation and GitHub Actions workflows to execute the `.NET` builds natively.
 
 ### Removed
+- **Legacy Structure**: Removed outdated script dependencies, unit tests, and the `Internal` & `Rules` parsing directories.
 
-- `pslint.ps1` : pslint function was redefined under the pslint.psm1 file so that the function is imported at the same time as the module itself.
+---
+
+## [v1.0.0]
+
+### Added
+- **Console Output Improvements**: Introduced pretty reporting schemas for clean CI logging.
+- **Endblock Enhancements**: Improved final pipeline outputs.
+
+### Fixed
+- **Markdown Docs**: Restored specific align components for "back to top" link formatting.
+
+### Removed
+- **Function Sprawl**: Relocated the `pslint.ps1` function definition directly into `pslint.psm1` so that module and command aliases populate cleanly upon import.

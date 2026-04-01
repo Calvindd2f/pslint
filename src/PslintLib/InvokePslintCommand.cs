@@ -1,5 +1,8 @@
 using System.Management.Automation;
 using System.Linq;
+using System.Net.Http;
+using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace PslintLib;
 
@@ -25,6 +28,16 @@ public class InvokePslintCommand : PSCmdlet
 
     [Parameter]
     public string PSSAConfig { get; set; } = string.Empty;
+
+    // New BenchmarkMode parameters
+    [Parameter]
+    public SwitchParameter BenchmarkMode { get; set; }
+
+    [Parameter]
+    public string BenchmarkModeFileBefore { get; set; } = string.Empty;
+
+    [Parameter]
+    public string BenchmarkModeFileAfter { get; set; } = string.Empty;
 
     protected override void BeginProcessing()
     {
@@ -88,6 +101,23 @@ public class InvokePslintCommand : PSCmdlet
     protected override void ProcessRecord()
     {
         Analysis.CodeAnalysisResults results;
+
+        // Run benchmarks before analysis if BenchmarkMode is enabled
+        List<string> benchmarkOutputs = null;
+        if (BenchmarkMode.IsPresent)
+        {
+            var scripts = GetBenchmarkScripts();
+            if (scripts != null && scripts.Any())
+            {
+                benchmarkOutputs = RunBenchmarksAsync(scripts).GetAwaiter().GetResult();
+                // Output benchmark results
+                foreach (var outStr in benchmarkOutputs)
+                {
+                    Host.UI.WriteLine("--- Benchmark Output ---");
+                    Host.UI.WriteLine(outStr);
+                }
+            }
+        }
 
         if (ParameterSetName == "Path")
         {
@@ -251,5 +281,75 @@ public class InvokePslintCommand : PSCmdlet
                 }
             }
         }
+        // Closes ProcessRecord
+        }
+
+        // Helper method to retrieve benchmark script contents
+        private IEnumerable<string> GetBenchmarkScripts()
+        {
+            var scripts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(BenchmarkModeFileBefore) && System.IO.File.Exists(BenchmarkModeFileBefore))
+                scripts.Add(System.IO.File.ReadAllText(BenchmarkModeFileBefore));
+            
+            if (!string.IsNullOrWhiteSpace(BenchmarkModeFileAfter) && System.IO.File.Exists(BenchmarkModeFileAfter))
+                scripts.Add(System.IO.File.ReadAllText(BenchmarkModeFileAfter));
+            
+            // If no files provided, return default benchmark scripts from Microsoft docs guidelines
+            if (scripts.Count == 0)
+            {
+                scripts.Add(@"
+Write-Output '--- Array Addition Benchmark (+=) ---'
+Measure-Command {
+    $array = @()
+    for ($i = 0; $i -lt 10000; $i++) { $array += $i }
+} | Select-Object -ExpandProperty TotalMilliseconds | ForEach-Object { Write-Output ""Array += took $_ ms"" }
+
+Write-Output '--- List<T>.Add Benchmark ---'
+Measure-Command {
+    $list = [System.Collections.Generic.List[int]]::new()
+    for ($i = 0; $i -lt 10000; $i++) { $list.Add($i) }
+} | Select-Object -ExpandProperty TotalMilliseconds | ForEach-Object { Write-Output ""List.Add took $_ ms"" }
+");
+                
+                scripts.Add(@"
+Write-Output '--- ForEach-Object Pipeline Benchmark ---'
+Measure-Command {
+    1..10000 | ForEach-Object { $_ }
+} | Select-Object -ExpandProperty TotalMilliseconds | ForEach-Object { Write-Output ""ForEach-Object took $_ ms"" }
+
+Write-Output '--- foreach Statement Benchmark ---'
+Measure-Command {
+    foreach ($i in 1..10000) { $i }
+} | Select-Object -ExpandProperty TotalMilliseconds | ForEach-Object { Write-Output ""foreach statement took $_ ms"" }
+");
+            }
+            return scripts;
+        }
+
+        // Helper method to run benchmarks asynchronously
+        private async Task<List<string>> RunBenchmarksAsync(IEnumerable<string> scriptContents)
+        {
+            var results = new List<string>();
+            var tasks = new List<Task>();
+            foreach (var scriptContent in scriptContents)
+            {
+                tasks.Add(Task.Run(() =>
+                {
+                    using var ps = System.Management.Automation.PowerShell.Create(RunspaceMode.NewRunspace);
+                    ps.AddScript(scriptContent);
+                    var output = ps.Invoke();
+                    var sb = new System.Text.StringBuilder();
+                    foreach (var o in output)
+                    {
+                        sb.AppendLine(o?.ToString());
+                    }
+                    lock (results)
+                    {
+                        results.Add(sb.ToString());
+                    }
+                }));
+            }
+            await Task.WhenAll(tasks);
+            return results;
+        }
     }
-}
