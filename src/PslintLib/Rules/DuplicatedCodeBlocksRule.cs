@@ -1,16 +1,23 @@
-using System.Collections.Generic;
 using System.Linq;
 using System.Management.Automation.Language;
 
 namespace PslintLib.Analysis;
 
-public static class DuplicateCodeAnalyzer
+/// <summary>PSL015: the same statement repeated three or more times, a candidate for extracting a function or loop.</summary>
+public sealed class DuplicatedCodeBlocksRule : IWholeAstRule
 {
     private const int MinimumOccurrences = 3;
 
-    public static void Analyze(Ast ast, CodeAnalysisResults results)
+    public string Id => "PSL015";
+    public string Name => "Duplicated Code Block";
+    public string Category => "DuplicatedCodeBlocks";
+    public Severity Severity => Severity.Info;
+    public string DefaultSuggestion =>
+        "This statement is repeated three or more times in the script. Consider extracting it into a function or loop to reduce duplication and centralize future changes.";
+
+    public void Analyze(Ast root, bool isManifest, RuleContext context)
     {
-        var candidates = ast.FindAll(a => IsDuplicateCandidate(a), true);
+        var candidates = root.FindAll(IsDuplicateCandidate, true);
 
         var groups = candidates
             .Cast<Ast>()
@@ -23,7 +30,7 @@ public static class DuplicateCodeAnalyzer
             {
                 foreach (var occurrence in occurrences)
                 {
-                    results.DuplicatedCodeBlocks.Add(occurrence);
+                    context.Report(this, occurrence);
                 }
             }
         }

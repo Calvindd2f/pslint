@@ -129,14 +129,14 @@ public class InvokePslintCommand : PSCmdlet
                 formattedOutput = System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
                 break;
             case "csv":
-                var csvLines = new System.Collections.Generic.List<string> { "Category,Line,Text,Suggestion" };
+                var csvLines = new System.Collections.Generic.List<string> { "Category,RuleId,Severity,Line,Text,Suggestion" };
                 foreach (var kvp in report.Details)
                 {
                     foreach (var issue in kvp.Value)
                     {
                         var text = issue.Text?.Replace("\"", "\"\"") ?? "";
                         var suggestion = issue.Suggestion?.Replace("\"", "\"\"") ?? "";
-                        csvLines.Add($"\"{kvp.Key}\",\"{issue.Line}\",\"{text}\",\"{suggestion}\"");
+                        csvLines.Add($"\"{kvp.Key}\",\"{issue.RuleId}\",\"{issue.Severity}\",\"{issue.Line}\",\"{text}\",\"{suggestion}\"");
                     }
                 }
                 formattedOutput = string.Join(System.Environment.NewLine, csvLines);
@@ -167,7 +167,7 @@ public class InvokePslintCommand : PSCmdlet
                             sb.AppendLine($"== {kvp.Key} ({count} issues) ==");
                             foreach (var issue in kvp.Value)
                             {
-                                sb.AppendLine($"  Line {issue.Line}:");
+                                sb.AppendLine($"  Line {issue.Line} [{issue.RuleId}] ({issue.Severity}):");
                                 sb.AppendLine($"    Code: {issue.Text}");
                                 sb.AppendLine($"    Suggestion: {issue.Suggestion}");
                             }

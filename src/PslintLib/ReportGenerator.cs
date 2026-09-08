@@ -1,28 +1,15 @@
 using System;
 using System.Collections.Generic;
-using System.Management.Automation.Language;
+using System.Linq;
 
 namespace PslintLib.Analysis;
 
 public static class ReportGenerator
 {
-    private static IScriptExtent? GetExtentFromIssue(object issue)
-    {
-        var issueType = issue.GetType();
-        var extentProperty = issueType.GetProperty("Extent");
-        if (extentProperty != null)
-        {
-            return extentProperty.GetValue(issue) as IScriptExtent;
-        }
-
-        // Fallback - try to cast directly if it's an AST node
-        if (issue is IScriptExtent extent)
-        {
-            return extent;
-        }
-
-        return null;
-    }
+    private static readonly Dictionary<string, int> CategoryOrder = RuleRegistry.AllRules
+        .Select((rule, index) => (rule.Category, index))
+        .GroupBy(x => x.Category)
+        .ToDictionary(g => g.Key, g => g.First().index);
 
     public static LintReport Generate(CodeAnalysisResults results, string? scriptPath, bool isCI)
     {
@@ -32,51 +19,27 @@ public static class ReportGenerator
             ScriptPath = string.IsNullOrEmpty(scriptPath) ? "ScriptBlock Analysis" : scriptPath
         };
 
-        var resultType = typeof(CodeAnalysisResults);
-        foreach (var prop in resultType.GetProperties())
+        var groups = results.Findings
+            .GroupBy(f => f.Category)
+            .OrderBy(g => CategoryOrder.TryGetValue(g.Key, out var order) ? order : int.MaxValue);
+
+        foreach (var group in groups)
         {
-            var issues = prop.GetValue(results) as IList<object>;
-            if (issues == null || issues.Count == 0)
-            {
-                continue;
-            }
+            var categoryName = group.Key;
 
-            var categoryName = prop.Name;
-            report.Summary.Categories[categoryName] = issues.Count;
-            report.Summary.TotalIssues += issues.Count;
-
-            var issueList = new List<LintIssue>();
-            foreach (var issue in issues)
-            {
-                var extent = GetExtentFromIssue(issue);
-                var suggestion = categoryName switch
+            var issueList = group
+                .Select(finding => new LintIssue
                 {
-                    "OutputSuppression" => "Consider using [void] for performance and clarity instead of piping to Out-Null or assigning to $null.",
-                    "ArrayAddition" => "Using += on an array creates a new array and copies all elements on each call. For better performance, use [System.Collections.ArrayList] or [System.Collections.Generic.List[object]] and their .Add() method.",
-                    "StringAddition" => "Repeated string concatenation can be inefficient. For complex strings, consider using the -f format operator, -join, or System.Text.StringBuilder.",
-                    "LargeFileProcessing" => "For large files, Get-Content can consume a lot of memory. Consider using System.IO.StreamReader for more efficient line-by-line processing.",
-                    "LargeCollectionLookup" => "For large collections, PowerShell hashtables can be slower than generic dictionaries. Consider using System.Collections.Generic.Dictionary[TKey, TValue] for better performance.",
-                    "WriteHostUsage" => "Write-Host writes directly to the console, which can limit script portability and prevent capturing output. For general output, prefer Write-Output. For logging or debugging, consider Write-Verbose, Write-Debug, or a dedicated logging framework.",
-                    "LargeLoops" => "Very large loops can be slow. Consider optimizing the logic inside the loop or exploring faster, array-based operations with .NET methods where possible.",
-                    "RepeatedFunctionCalls" => "Calling the same function repeatedly with the same parameters can be inefficient. Consider caching the results in a variable.",
-                    "CmdletPipelineWrapping" => (extent?.Text?.Contains("Get-WmiObject") == true) ? "`Get-WmiObject` is obsolete. Use `Get-CimInstance` instead. Also, try to use a `-Filter` parameter instead of piping to `Where-Object` to improve performance by filtering at the source." : "Piping to `Where-Object` can be inefficient for large datasets. Where possible, use a cmdlet-specific `-Filter` parameter to filter results at the source. Long pipelines can also be harder to read and debug.",
-                    "DynamicObjectCreation" => "Creating custom objects with `[PSCustomObject]` or `Add-Member` inside loops can be slow. For performance-critical scenarios, consider defining a class.",
-                    "ParallelExecution" => (extent?.Text?.IndexOf("Start-Job", StringComparison.OrdinalIgnoreCase) >= 0) ? "Start-Job creates a new process for each job, which has high overhead. Consider Start-ThreadJob or ForEach-Object -Parallel instead." : "When using ForEach-Object -Parallel, explicitly specify the -ThrottleLimit parameter. The default is 5, but you should balance overhead with the work being done.",
-                    "ManifestEfficiency" => "In module manifests, avoid using wildcards ('*') or omitting entries like CmdletsToExport, FunctionsToExport, and AliasesToExport. Use an empty array '@()' to explicitly indicate nothing is exported. This dramatically improves module loading performance by preventing slow CDXML scanning.",
-                    "MissingErrorHandling" => "This call can throw (network, module, or connection failures). Wrap it in a try/catch block so failures are handled predictably instead of terminating the script or being silently swallowed by calling code.",
-                    "MissingParameterValidation" => "This mandatory parameter has no type constraint or [Validate*] attribute. Add one (e.g. [string], [ValidateNotNullOrEmpty()]) so invalid input is rejected at the function boundary instead of failing later with a less obvious error.",
-                    "DuplicatedCodeBlocks" => "This statement is repeated three or more times in the script. Consider extracting it into a function or loop to reduce duplication and centralize future changes.",
-                    _ => "Review for potential optimization."
-                };
+                    RuleId = finding.RuleId,
+                    Severity = finding.Severity.ToString(),
+                    Line = finding.Extent?.StartLineNumber ?? 0,
+                    Text = finding.Extent?.Text?.Trim() ?? "Unknown",
+                    Suggestion = finding.Suggestion
+                })
+                .ToList();
 
-                issueList.Add(new LintIssue
-                {
-                    Line = extent?.StartLineNumber ?? 0,
-                    Text = extent?.Text?.Trim() ?? "Unknown",
-                    Suggestion = suggestion
-                });
-            }
-
+            report.Summary.Categories[categoryName] = issueList.Count;
+            report.Summary.TotalIssues += issueList.Count;
             report.Details[categoryName] = issueList;
         }
 
@@ -85,10 +48,10 @@ public static class ReportGenerator
             foreach (var kvp in report.Details)
             {
                 var category = kvp.Key;
-                var list = kvp.Value;
-                foreach (var issue in list)
+                foreach (var issue in kvp.Value)
                 {
-                    Console.WriteLine($"::warning file={report.ScriptPath},line={issue.Line}::[{category}] {issue.Suggestion}");
+                    var annotationType = issue.Severity == nameof(Severity.Error) ? "error" : "warning";
+                    Console.WriteLine($"::{annotationType} file={report.ScriptPath},line={issue.Line}::[{category}][{issue.RuleId}] {issue.Suggestion}");
                 }
             }
         }

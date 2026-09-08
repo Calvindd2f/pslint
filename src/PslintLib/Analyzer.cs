@@ -35,21 +35,6 @@ public static class Analyzer
 
     private static CodeAnalysisResults AnalyzeAst(Ast ast, bool isManifest)
     {
-        var visitor = new ScriptAnalyzerVisitor();
-        ast.Visit(visitor);
-        var results = visitor.Results;
-
-        DuplicateCodeAnalyzer.Analyze(ast, results);
-
-        if (isManifest)
-        {
-            var pds1Ast = System.Linq.Enumerable.FirstOrDefault(ast.FindAll(a => a is HashtableAst, true));
-            if (pds1Ast is HashtableAst hashtableAst)
-            {
-                ManifestAnalyzer.Analyze(hashtableAst, results);
-            }
-        }
-
-        return results;
+        return RuleEngine.Analyze(ast, isManifest);
     }
 }
