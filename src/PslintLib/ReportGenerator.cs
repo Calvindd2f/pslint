@@ -63,6 +63,9 @@ public static class ReportGenerator
                     "DynamicObjectCreation" => "Creating custom objects with `[PSCustomObject]` or `Add-Member` inside loops can be slow. For performance-critical scenarios, consider defining a class.",
                     "ParallelExecution" => (extent?.Text?.IndexOf("Start-Job", StringComparison.OrdinalIgnoreCase) >= 0) ? "Start-Job creates a new process for each job, which has high overhead. Consider Start-ThreadJob or ForEach-Object -Parallel instead." : "When using ForEach-Object -Parallel, explicitly specify the -ThrottleLimit parameter. The default is 5, but you should balance overhead with the work being done.",
                     "ManifestEfficiency" => "In module manifests, avoid using wildcards ('*') or omitting entries like CmdletsToExport, FunctionsToExport, and AliasesToExport. Use an empty array '@()' to explicitly indicate nothing is exported. This dramatically improves module loading performance by preventing slow CDXML scanning.",
+                    "MissingErrorHandling" => "This call can throw (network, module, or connection failures). Wrap it in a try/catch block so failures are handled predictably instead of terminating the script or being silently swallowed by calling code.",
+                    "MissingParameterValidation" => "This mandatory parameter has no type constraint or [Validate*] attribute. Add one (e.g. [string], [ValidateNotNullOrEmpty()]) so invalid input is rejected at the function boundary instead of failing later with a less obvious error.",
+                    "DuplicatedCodeBlocks" => "This statement is repeated three or more times in the script. Consider extracting it into a function or loop to reduce duplication and centralize future changes.",
                     _ => "Review for potential optimization."
                 };
 

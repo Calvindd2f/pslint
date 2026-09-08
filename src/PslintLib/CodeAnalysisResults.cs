@@ -16,6 +16,9 @@ public class CodeAnalysisResults
     public List<object> DynamicObjectCreation { get; } = new();
     public List<object> ParallelExecution { get; } = new();
     public List<object> ManifestEfficiency { get; } = new();
+    public List<object> MissingErrorHandling { get; } = new();
+    public List<object> MissingParameterValidation { get; } = new();
+    public List<object> DuplicatedCodeBlocks { get; } = new();
 
     public void Clear()
     {
@@ -31,5 +34,8 @@ public class CodeAnalysisResults
         DynamicObjectCreation.Clear();
         ParallelExecution.Clear();
         ManifestEfficiency.Clear();
+        MissingErrorHandling.Clear();
+        MissingParameterValidation.Clear();
+        DuplicatedCodeBlocks.Clear();
     }
 }

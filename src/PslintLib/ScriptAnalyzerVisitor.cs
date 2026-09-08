@@ -5,7 +5,28 @@ namespace PslintLib.Analysis;
 
 public class ScriptAnalyzerVisitor : AstVisitor2
 {
+    private static readonly string[] RiskyCommands =
+    {
+        "Invoke-RestMethod",
+        "Invoke-WebRequest",
+        "Import-Module",
+        "New-Object",
+        "Invoke-Command"
+    };
+
     public CodeAnalysisResults Results { get; } = new();
+
+    private static bool IsInsideTryStatement(Ast ast)
+    {
+        for (Ast child = ast, parent = ast.Parent; parent != null; child = parent, parent = parent.Parent)
+        {
+            if (parent is TryStatementAst tryStatement && ReferenceEquals(tryStatement.Body, child))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 
     public override AstVisitAction VisitAssignmentStatement(AssignmentStatementAst assignmentStatementAst)
     {
@@ -55,6 +76,17 @@ public class ScriptAnalyzerVisitor : AstVisitor2
         if (commandAst.CommandElements.Count > 0)
         {
             var commandName = commandAst.CommandElements[0].ToString();
+
+            foreach (var riskyCommand in RiskyCommands)
+            {
+                if (string.Equals(commandName, riskyCommand, StringComparison.OrdinalIgnoreCase) &&
+                    !IsInsideTryStatement(commandAst))
+                {
+                    Results.MissingErrorHandling.Add(commandAst);
+                    break;
+                }
+            }
+
             if (string.Equals(commandName, "Get-Content", StringComparison.OrdinalIgnoreCase))
             {
                 Results.LargeFileProcessing.Add(commandAst);
@@ -184,6 +216,59 @@ public class ScriptAnalyzerVisitor : AstVisitor2
         if (string.Equals(typeExpressionAst.TypeName.Name, "StreamReader", StringComparison.OrdinalIgnoreCase))
         {
             Results.LargeFileProcessing.Add(typeExpressionAst);
+        }
+
+        return AstVisitAction.Continue;
+    }
+
+    public override AstVisitAction VisitParameter(ParameterAst parameterAst)
+    {
+        bool isMandatory = false;
+        bool hasTypeConstraint = false;
+        bool hasValidationAttribute = false;
+
+        foreach (var attribute in parameterAst.Attributes)
+        {
+            if (attribute is TypeConstraintAst)
+            {
+                hasTypeConstraint = true;
+                continue;
+            }
+
+            if (attribute is AttributeAst attributeAst)
+            {
+                if (string.Equals(attributeAst.TypeName.Name, "Parameter", StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var namedArgument in attributeAst.NamedArguments)
+                    {
+                        if (string.Equals(namedArgument.ArgumentName, "Mandatory", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (namedArgument.ExpressionOmitted)
+                            {
+                                isMandatory = true;
+                            }
+                            else if (namedArgument.Argument is VariableExpressionAst boolVar &&
+                                      string.Equals(boolVar.VariablePath.UserPath, "false", StringComparison.OrdinalIgnoreCase))
+                            {
+                                isMandatory = false;
+                            }
+                            else
+                            {
+                                isMandatory = true;
+                            }
+                        }
+                    }
+                }
+                else if (attributeAst.TypeName.Name.StartsWith("Validate", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasValidationAttribute = true;
+                }
+            }
+        }
+
+        if (isMandatory && !hasTypeConstraint && !hasValidationAttribute)
+        {
+            Results.MissingParameterValidation.Add(parameterAst);
         }
 
         return AstVisitAction.Continue;
