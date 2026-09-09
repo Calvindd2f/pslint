@@ -245,6 +245,7 @@ Diagnostics
        ├── Console
        ├── JSON
        ├── CSV
+       ├── SARIF
        └── Plaintext
 ```
 
@@ -344,6 +345,15 @@ pslint `
     -Path .\script.ps1 `
     -OutputFormat JSON `
     -OutputPath .\results.json
+```
+
+Export as SARIF, for GitHub Code Scanning, Azure DevOps, or any SARIF-aware editor/viewer:
+
+```powershell
+pslint `
+    -Path .\script.ps1 `
+    -OutputFormat SARIF `
+    -OutputPath .\results.sarif
 ```
 
 ---

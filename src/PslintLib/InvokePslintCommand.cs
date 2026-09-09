@@ -17,7 +17,7 @@ public class InvokePslintCommand : PSCmdlet
     public ScriptBlock? ScriptBlock { get; set; }
 
     [Parameter]
-    [ValidateSet("stdout", "textonly", "JSON", "CSV", IgnoreCase = true)]
+    [ValidateSet("stdout", "textonly", "JSON", "CSV", "SARIF", IgnoreCase = true)]
     public string OutputFormat { get; set; } = "stdout";
 
     [Parameter]
@@ -141,6 +141,14 @@ public class InvokePslintCommand : PSCmdlet
                 }
                 formattedOutput = string.Join(System.Environment.NewLine, csvLines);
                 break;
+            case "sarif":
+                var sarifLog = Analysis.SarifGenerator.Generate(results, ParameterSetName == "Path" ? Path : null);
+                formattedOutput = System.Text.Json.JsonSerializer.Serialize(sarifLog, new System.Text.Json.JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+                });
+                break;
             case "stdout":
             case "textonly":
                 var sb = new System.Text.StringBuilder();
@@ -189,8 +197,13 @@ public class InvokePslintCommand : PSCmdlet
             var outPath = this.SessionState.Path.GetUnresolvedProviderPathFromPSPath(OutputPath);
             if (System.IO.Directory.Exists(outPath))
             {
-                var ext = OutputFormat.ToLowerInvariant() == "json" ? "json" : 
-                          (OutputFormat.ToLowerInvariant() == "csv" ? "csv" : "txt");
+                var ext = OutputFormat.ToLowerInvariant() switch
+                {
+                    "json" => "json",
+                    "csv" => "csv",
+                    "sarif" => "sarif",
+                    _ => "txt"
+                };
                 outPath = System.IO.Path.Combine(outPath, $"pslint_report_{System.DateTime.Now:yyyyMMdd_HHmmss}.{ext}");
             }
             System.IO.File.WriteAllText(outPath, formattedOutput);
