@@ -6,7 +6,7 @@ using System.Collections.Generic;
 
 namespace PslintLib;
 
-[Cmdlet(VerbsLifecycle.Invoke, "Pslint", DefaultParameterSetName = "Path")]
+[Cmdlet(VerbsLifecycle.Invoke, "Pslint", DefaultParameterSetName = "Path", SupportsShouldProcess = true)]
 [Alias("Scan-PowerShellScriptAdvanced", "pslint")]
 public class InvokePslintCommand : PSCmdlet
 {
@@ -38,6 +38,16 @@ public class InvokePslintCommand : PSCmdlet
 
     [Parameter]
     public string BenchmarkModeFileAfter { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Applies the safe, mechanical fixes available for whatever was found (see IFixableRule
+    /// implementations - currently a deliberately small set: Out-Null/&gt;$null output suppression
+    /// and missing -ThrottleLimit on ForEach-Object -Parallel). In -Path mode this rewrites the
+    /// file in place and honors -WhatIf/-Confirm; in -ScriptBlock mode there's no file to write
+    /// back to, so the fixed script text is returned instead.
+    /// </summary>
+    [Parameter]
+    public SwitchParameter Fix { get; set; }
 
     protected override void BeginProcessing()
     {
@@ -270,7 +280,54 @@ public class InvokePslintCommand : PSCmdlet
                 }
             }
         }
+
+        if (Fix.IsPresent)
+        {
+            ApplyFixes();
+        }
         // Closes ProcessRecord
+        }
+
+        private void ApplyFixes()
+        {
+            var sourceText = ParameterSetName == "Path"
+                ? System.IO.File.ReadAllText(Path)
+                : ScriptBlock!.ToString();
+
+            // Re-parse fresh from sourceText rather than reusing the `results` computed earlier
+            // for the report: those findings' Node extents may be offset against a different
+            // buffer (e.g. a ScriptBlock literal's Ast can be offset against the whole enclosing
+            // command line), which would corrupt the fix if used to slice sourceText directly.
+            var isManifest = ParameterSetName == "Path" &&
+                Path.EndsWith(".psd1", System.StringComparison.OrdinalIgnoreCase);
+            var fixResults = Analysis.Analyzer.AnalyzeText(sourceText, isManifest);
+
+            var fixes = Analysis.FixEngine.CollectFixes(fixResults, sourceText);
+            if (fixes.Count == 0)
+            {
+                Host.UI.WriteLine("No auto-fixable issues found.");
+                return;
+            }
+
+            var fixedText = Analysis.FixEngine.ApplyFixes(sourceText, fixes.Select(f => f.Edit));
+            var summary = string.Join(", ", fixes
+                .GroupBy(f => f.Finding.RuleId)
+                .OrderBy(g => g.Key)
+                .Select(g => $"{g.Key} x{g.Count()}"));
+
+            if (ParameterSetName == "Path")
+            {
+                if (ShouldProcess(Path, $"Apply {fixes.Count} auto-fix(es) ({summary})"))
+                {
+                    System.IO.File.WriteAllText(Path, fixedText);
+                    Host.UI.WriteLine($"Applied {fixes.Count} fix(es) to {Path}: {summary}");
+                }
+            }
+            else
+            {
+                Host.UI.WriteLine($"Applied {fixes.Count} fix(es) ({summary}). Returning fixed script text.");
+                WriteObject(fixedText);
+            }
         }
 
         // Helper method to retrieve benchmark script contents

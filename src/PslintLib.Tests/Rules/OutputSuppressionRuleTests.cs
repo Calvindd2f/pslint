@@ -97,4 +97,85 @@ public class OutputSuppressionRuleTests
 
         Assert.Empty(findings);
     }
+
+    [Fact]
+    public void TryFix_SingleElementOutNullPipeline_RewritesToVoidCast()
+    {
+        var source = "Get-Process | Out-Null";
+        var ast = AstTestHelper.Parse(source);
+        var node = ast.FindFirstRequired<PipelineAst>();
+
+        var edit = _rule.TryFix(node, source);
+
+        Assert.NotNull(edit);
+        Assert.Equal("[void](Get-Process)", edit!.Replacement);
+    }
+
+    [Fact]
+    public void TryFix_MultiElementOutNullPipeline_KeepsUpstreamPipeline()
+    {
+        var source = "Get-Process | Where-Object { $_.CPU -gt 10 } | Out-Null";
+        var ast = AstTestHelper.Parse(source);
+        var node = ast.FindFirstRequired<PipelineAst>();
+
+        var edit = _rule.TryFix(node, source);
+
+        Assert.NotNull(edit);
+        Assert.Equal("[void](Get-Process | Where-Object { $_.CPU -gt 10 })", edit!.Replacement);
+    }
+
+    [Fact]
+    public void TryFix_BareOutNullWithNoUpstream_ReturnsNull()
+    {
+        var source = "Out-Null";
+        var ast = AstTestHelper.Parse(source);
+        var node = ast.FindFirstRequired<PipelineAst>();
+
+        var edit = _rule.TryFix(node, source);
+
+        Assert.Null(edit);
+    }
+
+    [Fact]
+    public void TryFix_NullRedirection_RewritesToVoidCast()
+    {
+        var source = "Get-Process >$null";
+        var ast = AstTestHelper.Parse(source);
+        var node = ast.FindFirstRequired<CommandAst>();
+
+        var edit = _rule.TryFix(node, source);
+
+        Assert.NotNull(edit);
+        Assert.Equal("[void](Get-Process)", edit!.Replacement);
+    }
+
+    [Fact]
+    public void TryFix_RedirectionWithAdditionalStreamRedirect_ReturnsNull()
+    {
+        // Only the single ">$null" shape this rule detects is fixable - a second redirection
+        // (e.g. 2>$null for errors) would be silently dropped by a naive [void](...) rewrite,
+        // so TryFix must decline rather than risk suppressing a stream nobody asked to suppress.
+        var source = "Get-Process >$null 2>$null";
+        var ast = AstTestHelper.Parse(source);
+        var node = ast.FindFirstRequired<CommandAst>();
+
+        var edit = _rule.TryFix(node, source);
+
+        Assert.Null(edit);
+    }
+
+    [Fact]
+    public void TryFix_AssignmentToNull_ReturnsNull()
+    {
+        // This shape is deliberately never fixed: it isn't output suppression, it's a variable
+        // assignment. Rewriting `$result = $null` to a void cast would silently stop $result from
+        // being set, changing the script's behavior.
+        var source = "$result = $null";
+        var ast = AstTestHelper.Parse(source);
+        var node = ast.FindFirstRequired<AssignmentStatementAst>();
+
+        var edit = _rule.TryFix(node, source);
+
+        Assert.Null(edit);
+    }
 }

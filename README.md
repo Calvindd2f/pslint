@@ -358,6 +358,36 @@ pslint `
 
 ---
 
+## Auto-fix
+
+`pslint -Path .\script.ps1 -Fix` rewrites the file in place for whatever findings have a safe,
+mechanical fix. It supports `-WhatIf` to preview what would change before committing to it:
+
+```powershell
+pslint -Path .\script.ps1 -Fix -WhatIf
+pslint -Path .\script.ps1 -Fix
+```
+
+Auto-fix is deliberately conservative. A rule reporting an issue does not mean that issue is
+fixable - only a fix that provably preserves behavior gets applied automatically. As of this
+writing, that's:
+
+| Pattern | Rewrite | Why it's safe |
+| --- | --- | --- |
+| `X \| Out-Null` | `[void](X)` | Same suppression, no change to what `X` does |
+| `X >$null` | `[void](X)` | Same suppression, only when there's no other redirection on the command |
+| `ForEach-Object -Parallel { ... }` with no `-ThrottleLimit` | appends `-ThrottleLimit 5` | Makes the documented default explicit; runtime behavior is unchanged |
+
+Notably absent: rewriting `+=` into `List[T].Add()` (changes the variable's type - anything
+downstream calling `.Length` instead of `.Count` would break), `Write-Host` into `Write-Output`
+(changes what a function returns to its caller), and `Get-WmiObject` into `Get-CimInstance`
+(the returned objects don't support all the same methods). These are real, useful rewrites for a
+human to make with the surrounding code in view - just not ones `pslint` will make unattended.
+
+Against `-ScriptBlock` there's no file to rewrite, so `-Fix` returns the fixed script text instead.
+
+---
+
 ## Rule design
 
 Rules are intended to provide four things:

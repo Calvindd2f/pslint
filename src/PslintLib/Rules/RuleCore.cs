@@ -128,6 +128,35 @@ public class Finding
     public Severity Severity { get; set; }
     public IScriptExtent? Extent { get; set; }
     public string Suggestion { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The exact AST node the rule reported against. Kept so FixEngine can hand it straight back
+    /// to the originating rule's TryFix without re-scanning the tree or duplicating the detection
+    /// condition. Not serialized into any report - it's an in-process handle only.
+    /// </summary>
+    public Ast? Node { get; set; }
+}
+
+/// <summary>
+/// A single textual replacement, expressed as absolute character offsets into the original source
+/// (matching IScriptExtent.StartScriptPosition.Offset / EndScriptPosition.Offset). EndOffset is
+/// exclusive.
+/// </summary>
+public class TextEdit
+{
+    public int StartOffset { get; set; }
+    public int EndOffset { get; set; }
+    public string Replacement { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Opt-in capability for a rule whose finding can be mechanically rewritten without changing the
+/// script's behavior. A rule may report on shapes it cannot safely fix - TryFix returning null for
+/// a given node means "this occurrence isn't auto-fixable", not "something went wrong".
+/// </summary>
+public interface IFixableRule : IRule
+{
+    TextEdit? TryFix(Ast node, string sourceText);
 }
 
 /// <summary>
@@ -151,7 +180,8 @@ public class RuleContext
             Category = rule.Category,
             Severity = rule.Severity,
             Extent = node.Extent,
-            Suggestion = suggestion ?? rule.DefaultSuggestion
+            Suggestion = suggestion ?? rule.DefaultSuggestion,
+            Node = node
         });
     }
 }

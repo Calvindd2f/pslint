@@ -4,7 +4,7 @@ using System.Management.Automation.Language;
 namespace PslintLib.Analysis;
 
 /// <summary>PSL011: high-overhead parallelism (`Start-Job`) or `-Parallel` without an explicit `-ThrottleLimit`.</summary>
-public sealed class ParallelExecutionRule : ICommandRule
+public sealed class ParallelExecutionRule : ICommandRule, IFixableRule
 {
     private const string StartJobSuggestion =
         "Start-Job creates a new process for each job, which has high overhead. Consider Start-ThreadJob or ForEach-Object -Parallel instead.";
@@ -33,27 +33,60 @@ public sealed class ParallelExecutionRule : ICommandRule
             return;
         }
 
-        if (string.Equals(commandName, "ForEach-Object", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(commandName, "%", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(commandName, "foreach", StringComparison.OrdinalIgnoreCase))
+        if (IsForEachObjectMissingThrottleLimit(ast))
         {
-            bool hasParallel = false;
-            bool hasThrottleLimit = false;
-            foreach (var element in ast.CommandElements)
-            {
-                if (element is CommandParameterAst paramAst)
-                {
-                    if (paramAst.ParameterName.StartsWith("Par", StringComparison.OrdinalIgnoreCase))
-                        hasParallel = true;
-                    if (paramAst.ParameterName.StartsWith("Thr", StringComparison.OrdinalIgnoreCase))
-                        hasThrottleLimit = true;
-                }
-            }
+            context.Report(this, ast, ThrottleLimitSuggestion);
+        }
+    }
 
-            if (hasParallel && !hasThrottleLimit)
+    /// <summary>
+    /// Only the missing-throttle-limit shape is fixed: appending the documented default
+    /// (-ThrottleLimit 5) makes the implicit explicit without changing runtime behavior at all.
+    /// Start-Job is deliberately NOT fixed - swapping it for Start-ThreadJob pulls in a separate
+    /// module and changes variable-scoping/isolation semantics, which isn't a mechanical rewrite.
+    /// </summary>
+    public TextEdit? TryFix(Ast node, string sourceText)
+    {
+        if (node is not CommandAst ast || !IsForEachObjectMissingThrottleLimit(ast))
+        {
+            return null;
+        }
+
+        int end = ast.Extent.EndScriptPosition.Offset;
+        return new TextEdit { StartOffset = end, EndOffset = end, Replacement = " -ThrottleLimit 5" };
+    }
+
+    private static bool IsForEachObjectMissingThrottleLimit(CommandAst ast)
+    {
+        if (ast.CommandElements.Count == 0)
+        {
+            return false;
+        }
+
+        var commandName = ast.CommandElements[0].ToString();
+        bool isForEachObject =
+            string.Equals(commandName, "ForEach-Object", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(commandName, "%", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(commandName, "foreach", StringComparison.OrdinalIgnoreCase);
+
+        if (!isForEachObject)
+        {
+            return false;
+        }
+
+        bool hasParallel = false;
+        bool hasThrottleLimit = false;
+        foreach (var element in ast.CommandElements)
+        {
+            if (element is CommandParameterAst paramAst)
             {
-                context.Report(this, ast, ThrottleLimitSuggestion);
+                if (paramAst.ParameterName.StartsWith("Par", StringComparison.OrdinalIgnoreCase))
+                    hasParallel = true;
+                if (paramAst.ParameterName.StartsWith("Thr", StringComparison.OrdinalIgnoreCase))
+                    hasThrottleLimit = true;
             }
         }
+
+        return hasParallel && !hasThrottleLimit;
     }
 }
