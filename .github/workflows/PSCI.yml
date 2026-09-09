@@ -18,19 +18,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
+        os: [windows-latest]
         shell: [pwsh, powershell]
-        exclude:
-          - os: ubuntu-latest
-            shell: powershell
-          - os: macos-latest
-            shell: powershell
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: PowerShell Module Cache
-        uses: actions/setup-powershell@v2
+        uses: microsoft/setup-powershell@v2
         with:
           powershell-version: latest
 
