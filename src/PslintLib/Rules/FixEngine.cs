@@ -12,6 +12,19 @@ public class FixCandidate
 }
 
 /// <summary>
+/// Outcome of applying a batch of edits. Applied/Skipped partition the input exactly - every edit
+/// passed to ApplyFixes ends up in exactly one of the two lists, by reference - so a caller can
+/// tell a candidate that landed in Text from one the overlap guard dropped, rather than assuming
+/// "I asked for N fixes" means "N fixes happened".
+/// </summary>
+public class FixApplicationResult
+{
+    public string Text { get; set; } = string.Empty;
+    public List<TextEdit> Applied { get; set; } = new();
+    public List<TextEdit> Skipped { get; set; } = new();
+}
+
+/// <summary>
 /// Collects and applies the safe, mechanical fixes available for a set of findings. Only findings
 /// whose originating rule implements IFixableRule - and whose specific node shape that rule
 /// chooses to fix - produce an edit; everything else is left for the human to judge.
@@ -47,28 +60,35 @@ public static class FixEngine
 
     /// <summary>
     /// Applies non-overlapping edits back-to-front so earlier offsets stay valid as later ones are
-    /// applied. If two edits do overlap (which would mean two rules tried to rewrite the same
-    /// span), the later one in source order is kept and the earlier one is skipped rather than
-    /// risking corrupted output.
+    /// applied. If two edits do overlap (which would mean two rules tried to rewrite overlapping
+    /// spans - e.g. a fix on a ForEach-Object command nested inside a pipeline another rule is
+    /// rewriting whole), the one starting later in the source is kept and the other is reported
+    /// back in Skipped rather than silently dropped or risking corrupted output. A second -Fix
+    /// pass after the first is applied will typically pick up whatever was skipped, since the
+    /// overlap that caused the skip is usually resolved once the winning edit has landed.
     /// </summary>
-    public static string ApplyFixes(string sourceText, IEnumerable<TextEdit> edits)
+    public static FixApplicationResult ApplyFixes(string sourceText, IEnumerable<TextEdit> edits)
     {
         var ordered = edits.OrderByDescending(e => e.StartOffset).ToList();
         var result = new StringBuilder(sourceText);
+        var applied = new List<TextEdit>();
+        var skipped = new List<TextEdit>();
         var earliestAppliedStart = sourceText.Length + 1;
 
         foreach (var edit in ordered)
         {
             if (edit.EndOffset > earliestAppliedStart)
             {
+                skipped.Add(edit);
                 continue;
             }
 
             result.Remove(edit.StartOffset, edit.EndOffset - edit.StartOffset);
             result.Insert(edit.StartOffset, edit.Replacement);
             earliestAppliedStart = edit.StartOffset;
+            applied.Add(edit);
         }
 
-        return result.ToString();
+        return new FixApplicationResult { Text = result.ToString(), Applied = applied, Skipped = skipped };
     }
 }

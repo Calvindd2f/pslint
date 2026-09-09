@@ -309,23 +309,45 @@ public class InvokePslintCommand : PSCmdlet
                 return;
             }
 
-            var fixedText = Analysis.FixEngine.ApplyFixes(sourceText, fixes.Select(f => f.Edit));
-            var summary = string.Join(", ", fixes
+            // ApplyFixes can decline an edit that overlaps another one it already applied (e.g.
+            // a throttle-limit insertion nested inside a pipeline another fix is rewriting whole).
+            // Report on what actually landed in Text, not on what was merely collected above -
+            // otherwise the summary can claim a fix was applied when the overlap guard dropped it.
+            var applyResult = Analysis.FixEngine.ApplyFixes(sourceText, fixes.Select(f => f.Edit));
+            var appliedEdits = new System.Collections.Generic.HashSet<Analysis.TextEdit>(applyResult.Applied);
+            var appliedFixes = fixes.Where(f => appliedEdits.Contains(f.Edit)).ToList();
+
+            if (appliedFixes.Count == 0)
+            {
+                Host.UI.WriteLine($"Found {fixes.Count} potential fix(es), but every one overlapped another and none could be safely applied. Re-run after addressing the overlapping issue by hand.");
+                return;
+            }
+
+            var summary = string.Join(", ", appliedFixes
                 .GroupBy(f => f.Finding.RuleId)
                 .OrderBy(g => g.Key)
                 .Select(g => $"{g.Key} x{g.Count()}"));
+            var fixedText = applyResult.Text;
 
             if (ParameterSetName == "Path")
             {
-                if (ShouldProcess(Path, $"Apply {fixes.Count} auto-fix(es) ({summary})"))
+                if (ShouldProcess(Path, $"Apply {appliedFixes.Count} auto-fix(es) ({summary})"))
                 {
                     System.IO.File.WriteAllText(Path, fixedText);
-                    Host.UI.WriteLine($"Applied {fixes.Count} fix(es) to {Path}: {summary}");
+                    Host.UI.WriteLine($"Applied {appliedFixes.Count} fix(es) to {Path}: {summary}");
+                    if (applyResult.Skipped.Count > 0)
+                    {
+                        Host.UI.WriteLine($"Skipped {applyResult.Skipped.Count} fix(es) that overlapped one already applied. Run pslint -Fix again to pick them up now that the conflicting edit has landed.");
+                    }
                 }
             }
             else
             {
-                Host.UI.WriteLine($"Applied {fixes.Count} fix(es) ({summary}). Returning fixed script text.");
+                Host.UI.WriteLine($"Applied {appliedFixes.Count} fix(es) ({summary}). Returning fixed script text.");
+                if (applyResult.Skipped.Count > 0)
+                {
+                    Host.UI.WriteLine($"Skipped {applyResult.Skipped.Count} fix(es) that overlapped one already applied.");
+                }
                 WriteObject(fixedText);
             }
         }

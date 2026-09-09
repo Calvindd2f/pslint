@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using PslintLib.Analysis;
 using Xunit;
 
@@ -38,14 +39,16 @@ public class FixEngineTests
     }
 
     [Fact]
-    public void ApplyFixes_SingleEdit_ReplacesExpectedRange()
+    public void ApplyFixes_SingleEdit_ReplacesExpectedRangeAndReportsApplied()
     {
         var source = "Get-Process | Out-Null";
         var edit = new TextEdit { StartOffset = 0, EndOffset = source.Length, Replacement = "[void](Get-Process)" };
 
         var result = FixEngine.ApplyFixes(source, new List<TextEdit> { edit });
 
-        Assert.Equal("[void](Get-Process)", result);
+        Assert.Equal("[void](Get-Process)", result.Text);
+        Assert.Same(edit, Assert.Single(result.Applied));
+        Assert.Empty(result.Skipped);
     }
 
     [Fact]
@@ -60,24 +63,26 @@ public class FixEngineTests
 
         var result = FixEngine.ApplyFixes(source, edits);
 
-        Assert.Equal("YYYY ZZZZ", result);
+        Assert.Equal("YYYY ZZZZ", result.Text);
+        Assert.Equal(2, result.Applied.Count);
+        Assert.Empty(result.Skipped);
     }
 
     [Fact]
-    public void ApplyFixes_OverlappingEdits_KeepsLaterOneAndSkipsEarlier()
+    public void ApplyFixes_OverlappingEdits_KeepsLaterOneAndReportsEarlierAsSkipped()
     {
         var source = "0123456789";
-        var edits = new List<TextEdit>
-        {
-            new() { StartOffset = 0, EndOffset = 6, Replacement = "EARLY" },  // overlaps the next
-            new() { StartOffset = 4, EndOffset = 10, Replacement = "LATER" }, // applied first (higher start)
-        };
+        var early = new TextEdit { StartOffset = 0, EndOffset = 6, Replacement = "EARLY" };  // overlaps the next
+        var later = new TextEdit { StartOffset = 4, EndOffset = 10, Replacement = "LATER" }; // applied first (higher start)
 
-        var result = FixEngine.ApplyFixes(source, edits);
+        var result = FixEngine.ApplyFixes(source, new List<TextEdit> { early, later });
 
         // The [4,10) edit applies first (descending StartOffset), producing "0123LATER".
-        // The [0,6) edit's EndOffset (6) exceeds the applied edit's start (4), so it's skipped.
-        Assert.Equal("0123LATER", result);
+        // The [0,6) edit's EndOffset (6) exceeds the applied edit's start (4), so it's skipped -
+        // and, critically, reported as skipped rather than silently counted as applied.
+        Assert.Equal("0123LATER", result.Text);
+        Assert.Same(later, Assert.Single(result.Applied));
+        Assert.Same(early, Assert.Single(result.Skipped));
     }
 
     [Fact]
@@ -88,6 +93,39 @@ public class FixEngineTests
 
         var result = FixEngine.ApplyFixes(source, new List<TextEdit> { edit });
 
-        Assert.Equal(source + " -ThrottleLimit 5", result);
+        Assert.Equal(source + " -ThrottleLimit 5", result.Text);
+    }
+
+    [Fact]
+    public void EndToEnd_ThrottleLimitInsertionNestedInsideOutNullPipeline_ThrottleFixWinsAndSuppressionFixIsSkipped()
+    {
+        // Regression test for a real bug found via manual testing: ForEach-Object -Parallel piped
+        // to Out-Null produces two overlapping edits - PSL011's insertion sits strictly inside the
+        // span PSL003's pipeline rewrite would replace. Both used to get counted as "applied" by
+        // the caller even though only one edit could land without corrupting the file.
+        var source = "1..5 | ForEach-Object -Parallel { $_ * 2 } | Out-Null";
+        var results = AnalyzeSnippet(source);
+
+        var fixes = FixEngine.CollectFixes(results, source);
+        Assert.Equal(2, fixes.Count); // both PSL003 and PSL011 produce a candidate edit here
+
+        var result = FixEngine.ApplyFixes(source, fixes.Select(f => f.Edit));
+
+        Assert.Single(result.Applied);
+        Assert.Single(result.Skipped);
+        // The throttle-limit insertion (nested, higher StartOffset) wins; the suppression rewrite
+        // (wraps the whole pipeline, lower StartOffset) is the one skipped.
+        Assert.Equal(" -ThrottleLimit 5", result.Applied.Single().Replacement);
+        Assert.StartsWith("[void](", result.Skipped.Single().Replacement);
+        Assert.Equal("1..5 | ForEach-Object -Parallel { $_ * 2 } -ThrottleLimit 5 | Out-Null", result.Text);
+
+        // A second pass, re-analyzing the now-fixed text, should pick up what the first pass
+        // skipped - the overlap that caused the skip no longer exists once ThrottleLimit landed.
+        var secondPassResults = AnalyzeSnippet(result.Text);
+        var secondPassFixes = FixEngine.CollectFixes(secondPassResults, result.Text);
+        var secondPassApply = FixEngine.ApplyFixes(result.Text, secondPassFixes.Select(f => f.Edit));
+
+        Assert.Empty(secondPassApply.Skipped);
+        Assert.Equal("[void](1..5 | ForEach-Object -Parallel { $_ * 2 } -ThrottleLimit 5)", secondPassApply.Text);
     }
 }
