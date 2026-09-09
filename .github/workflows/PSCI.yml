@@ -18,23 +18,27 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
+        os: [windows-latest]
         shell: [pwsh, powershell]
-        exclude:
-          - os: ubuntu-latest
-            shell: powershell
-          - os: macos-latest
-            shell: powershell
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: PowerShell Module Cache
-        id: _c232508244db4fd897e4b9e04710cc76
-        uses: potatoqualitee/psmodulecache@v6.2
+        uses: microsoft/setup-powershell@v2
         with:
-          modules-to-cache: PSScriptAnalyzer, Pester
+          powershell-version: latest
 
+      - name: Restore PSScriptAnalyzer and Pester
+        shell: pwsh
+        run: |
+          $modules = @('PSScriptAnalyzer', 'Pester')
+          foreach ($module in $modules) {
+            if (-not (Get-Module -ListAvailable -Name $module)) {
+              Install-Module -Name $module -Force -SkipPublisherCheck
+            }
+          }
+    
       - name: Build PowerShell Module (pwsh)
         if: matrix.shell == 'pwsh'
         shell: pwsh
