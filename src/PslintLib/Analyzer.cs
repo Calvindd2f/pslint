@@ -33,21 +33,28 @@ public static class Analyzer
         return AnalyzeAst(scriptBlock.Ast, false);
     }
 
-    private static CodeAnalysisResults AnalyzeAst(Ast ast, bool isManifest)
+    /// <summary>
+    /// Parses and analyzes a raw source string directly. Used for the -Fix path, which needs a
+    /// guarantee that Finding.Node's extent offsets are relative to exactly the string it is about
+    /// to slice and rewrite. That guarantee does not hold for ScriptBlock.Ast in every case - an
+    /// inline scriptblock literal passed as a cmdlet argument can carry extents offset against the
+    /// whole enclosing command line rather than against ScriptBlock.ToString() alone - so -Fix
+    /// re-parses fresh from the exact text it is editing instead of reusing an existing AST.
+    /// </summary>
+    public static CodeAnalysisResults AnalyzeText(string text, bool isManifest = false)
     {
-        var visitor = new ScriptAnalyzerVisitor();
-        ast.Visit(visitor);
-        var results = visitor.Results;
-
-        if (isManifest)
+        var ast = Parser.ParseInput(text, out Token[] tokens, out ParseError[] errors);
+        if (errors.Length > 0)
         {
-            var pds1Ast = System.Linq.Enumerable.FirstOrDefault(ast.FindAll(a => a is HashtableAst, true));
-            if (pds1Ast is HashtableAst hashtableAst)
-            {
-                ManifestAnalyzer.Analyze(hashtableAst, results);
-            }
+            var errorMessages = string.Join(Environment.NewLine, System.Linq.Enumerable.Select(errors, e => $"[Line {e.Extent.StartLineNumber}, Column {e.Extent.StartColumnNumber}] {e.Message}"));
+            throw new InvalidOperationException($"Parse errors encountered:{Environment.NewLine}{errorMessages}");
         }
 
-        return results;
+        return AnalyzeAst(ast, isManifest);
+    }
+
+    private static CodeAnalysisResults AnalyzeAst(Ast ast, bool isManifest)
+    {
+        return RuleEngine.Analyze(ast, isManifest);
     }
 }

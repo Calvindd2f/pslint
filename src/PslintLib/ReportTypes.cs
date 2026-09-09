@@ -5,6 +5,8 @@ namespace PslintLib.Analysis;
 
 public class LintIssue
 {
+    public string RuleId { get; set; } = string.Empty;
+    public string Severity { get; set; } = string.Empty;
     public int Line { get; set; }
     public string Text { get; set; } = string.Empty;
     public string Suggestion { get; set; } = string.Empty;

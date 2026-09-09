@@ -6,7 +6,7 @@ using System.Collections.Generic;
 
 namespace PslintLib;
 
-[Cmdlet(VerbsLifecycle.Invoke, "Pslint", DefaultParameterSetName = "Path")]
+[Cmdlet(VerbsLifecycle.Invoke, "Pslint", DefaultParameterSetName = "Path", SupportsShouldProcess = true)]
 [Alias("Scan-PowerShellScriptAdvanced", "pslint")]
 public class InvokePslintCommand : PSCmdlet
 {
@@ -17,7 +17,7 @@ public class InvokePslintCommand : PSCmdlet
     public ScriptBlock? ScriptBlock { get; set; }
 
     [Parameter]
-    [ValidateSet("stdout", "textonly", "JSON", "CSV", IgnoreCase = true)]
+    [ValidateSet("stdout", "textonly", "JSON", "CSV", "SARIF", IgnoreCase = true)]
     public string OutputFormat { get; set; } = "stdout";
 
     [Parameter]
@@ -38,6 +38,16 @@ public class InvokePslintCommand : PSCmdlet
 
     [Parameter]
     public string BenchmarkModeFileAfter { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Applies the safe, mechanical fixes available for whatever was found (see IFixableRule
+    /// implementations - currently a deliberately small set: Out-Null/&gt;$null output suppression
+    /// and missing -ThrottleLimit on ForEach-Object -Parallel). In -Path mode this rewrites the
+    /// file in place and honors -WhatIf/-Confirm; in -ScriptBlock mode there's no file to write
+    /// back to, so the fixed script text is returned instead.
+    /// </summary>
+    [Parameter]
+    public SwitchParameter Fix { get; set; }
 
     protected override void BeginProcessing()
     {
@@ -129,17 +139,25 @@ public class InvokePslintCommand : PSCmdlet
                 formattedOutput = System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
                 break;
             case "csv":
-                var csvLines = new System.Collections.Generic.List<string> { "Category,Line,Text,Suggestion" };
+                var csvLines = new System.Collections.Generic.List<string> { "Category,RuleId,Severity,Line,Text,Suggestion" };
                 foreach (var kvp in report.Details)
                 {
                     foreach (var issue in kvp.Value)
                     {
                         var text = issue.Text?.Replace("\"", "\"\"") ?? "";
                         var suggestion = issue.Suggestion?.Replace("\"", "\"\"") ?? "";
-                        csvLines.Add($"\"{kvp.Key}\",\"{issue.Line}\",\"{text}\",\"{suggestion}\"");
+                        csvLines.Add($"\"{kvp.Key}\",\"{issue.RuleId}\",\"{issue.Severity}\",\"{issue.Line}\",\"{text}\",\"{suggestion}\"");
                     }
                 }
                 formattedOutput = string.Join(System.Environment.NewLine, csvLines);
+                break;
+            case "sarif":
+                var sarifLog = Analysis.SarifGenerator.Generate(results, ParameterSetName == "Path" ? Path : null);
+                formattedOutput = System.Text.Json.JsonSerializer.Serialize(sarifLog, new System.Text.Json.JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+                });
                 break;
             case "stdout":
             case "textonly":
@@ -167,7 +185,7 @@ public class InvokePslintCommand : PSCmdlet
                             sb.AppendLine($"== {kvp.Key} ({count} issues) ==");
                             foreach (var issue in kvp.Value)
                             {
-                                sb.AppendLine($"  Line {issue.Line}:");
+                                sb.AppendLine($"  Line {issue.Line} [{issue.RuleId}] ({issue.Severity}):");
                                 sb.AppendLine($"    Code: {issue.Text}");
                                 sb.AppendLine($"    Suggestion: {issue.Suggestion}");
                             }
@@ -189,8 +207,13 @@ public class InvokePslintCommand : PSCmdlet
             var outPath = this.SessionState.Path.GetUnresolvedProviderPathFromPSPath(OutputPath);
             if (System.IO.Directory.Exists(outPath))
             {
-                var ext = OutputFormat.ToLowerInvariant() == "json" ? "json" : 
-                          (OutputFormat.ToLowerInvariant() == "csv" ? "csv" : "txt");
+                var ext = OutputFormat.ToLowerInvariant() switch
+                {
+                    "json" => "json",
+                    "csv" => "csv",
+                    "sarif" => "sarif",
+                    _ => "txt"
+                };
                 outPath = System.IO.Path.Combine(outPath, $"pslint_report_{System.DateTime.Now:yyyyMMdd_HHmmss}.{ext}");
             }
             System.IO.File.WriteAllText(outPath, formattedOutput);
@@ -257,7 +280,54 @@ public class InvokePslintCommand : PSCmdlet
                 }
             }
         }
+
+        if (Fix.IsPresent)
+        {
+            ApplyFixes();
+        }
         // Closes ProcessRecord
+        }
+
+        private void ApplyFixes()
+        {
+            var sourceText = ParameterSetName == "Path"
+                ? System.IO.File.ReadAllText(Path)
+                : ScriptBlock!.ToString();
+
+            // Re-parse fresh from sourceText rather than reusing the `results` computed earlier
+            // for the report: those findings' Node extents may be offset against a different
+            // buffer (e.g. a ScriptBlock literal's Ast can be offset against the whole enclosing
+            // command line), which would corrupt the fix if used to slice sourceText directly.
+            var isManifest = ParameterSetName == "Path" &&
+                Path.EndsWith(".psd1", System.StringComparison.OrdinalIgnoreCase);
+            var fixResults = Analysis.Analyzer.AnalyzeText(sourceText, isManifest);
+
+            var fixes = Analysis.FixEngine.CollectFixes(fixResults, sourceText);
+            if (fixes.Count == 0)
+            {
+                Host.UI.WriteLine("No auto-fixable issues found.");
+                return;
+            }
+
+            var fixedText = Analysis.FixEngine.ApplyFixes(sourceText, fixes.Select(f => f.Edit));
+            var summary = string.Join(", ", fixes
+                .GroupBy(f => f.Finding.RuleId)
+                .OrderBy(g => g.Key)
+                .Select(g => $"{g.Key} x{g.Count()}"));
+
+            if (ParameterSetName == "Path")
+            {
+                if (ShouldProcess(Path, $"Apply {fixes.Count} auto-fix(es) ({summary})"))
+                {
+                    System.IO.File.WriteAllText(Path, fixedText);
+                    Host.UI.WriteLine($"Applied {fixes.Count} fix(es) to {Path}: {summary}");
+                }
+            }
+            else
+            {
+                Host.UI.WriteLine($"Applied {fixes.Count} fix(es) ({summary}). Returning fixed script text.");
+                WriteObject(fixedText);
+            }
         }
 
         // Helper method to retrieve benchmark script contents

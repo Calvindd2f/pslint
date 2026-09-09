@@ -28,7 +28,14 @@ Copy-Item "$PSScriptRoot\README.md" -Destination $pslintDistDir -Force
 Copy-Item "$PSScriptRoot\LICENSE" -Destination $pslintDistDir -Force
 
 if (-not $SkipTests) {
-    Write-Host "Running tests..."
+    Write-Host "Running unit tests..."
+    dotnet test "$PSScriptRoot\src\PslintLib.Tests\PslintLib.Tests.csproj" -c Release
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unit tests failed!"
+    }
+
+    Write-Host "Running Pester tests..."
     if (Get-Module Pester -ListAvailable) {
         Import-Module Pester -ErrorAction SilentlyContinue
         # Remove previously loaded module if it exists
