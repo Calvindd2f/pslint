@@ -5,7 +5,7 @@
 
     CompanyName          = 'Calvindd2f'
 
-    ModuleVersion        = '2.2.0'
+    ModuleVersion        = '3.0.0'
 
     GUID                 = 'bc931fbd-b205-45be-9ecf-4f9db144998b'
 
